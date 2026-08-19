@@ -20,7 +20,20 @@ import {
   categoryAPI,
 } from "../services/api";
 
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
+
 const Sales = () => {
+  // ======================================================
+  // Permissions
+  // ======================================================
+
+  const { can } = usePermission();
+
+  const canDeleteSale = can(
+    PERMISSIONS.SALES_DELETE
+  );
+
   // ======================================================
   // States
   // ======================================================
@@ -323,6 +336,13 @@ const Sales = () => {
   // ======================================================
 
   const handleDelete = async (id) => {
+    if (!canDeleteSale) {
+      toast.error(
+        "আপনার Sale delete করার permission নেই"
+      );
+      return;
+    }
+
     const confirmed =
       window.confirm(
         "এই Sale delete করতে চান?"
@@ -930,18 +950,20 @@ const Sales = () => {
 
                           {/* Delete */}
 
-                          <button
-                            type="button"
-                            className="sale-delete-btn"
-                            title="Delete Sale"
-                            onClick={() =>
-                              handleDelete(
-                                sale._id
-                              )
-                            }
-                          >
-                            <FaTrash />
-                          </button>
+                          {canDeleteSale && (
+                            <button
+                              type="button"
+                              className="sale-delete-btn"
+                              title="Delete Sale"
+                              onClick={() =>
+                                handleDelete(
+                                  sale._id
+                                )
+                              }
+                            >
+                              <FaTrash />
+                            </button>
+                          )}
 
                         </div>
                       </td>

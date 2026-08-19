@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+
 import {
   FaEdit,
   FaPhone,
@@ -9,9 +10,12 @@ import {
   FaTimes,
   FaMoneyBillWave,
 } from "react-icons/fa";
+
 import { toast } from "react-toastify";
 
 import { customerAPI } from "../services/api";
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
 
 const EMPTY_FORM = {
   name: "",
@@ -22,6 +26,28 @@ const EMPTY_FORM = {
 };
 
 const Customers = () => {
+  // ==========================================
+  // Permissions
+  // ==========================================
+
+  const { can } = usePermission();
+
+  const canCreate = can(
+    PERMISSIONS.CUSTOMERS_CREATE
+  );
+
+  const canUpdate = can(
+    PERMISSIONS.CUSTOMERS_UPDATE
+  );
+
+  const canDelete = can(
+    PERMISSIONS.CUSTOMERS_DELETE
+  );
+
+  const canDuePayment = can(
+    PERMISSIONS.CUSTOMERS_DUE_PAYMENT
+  );
+
   // ==========================================
   // States
   // ==========================================
@@ -68,17 +94,28 @@ const Customers = () => {
 
     const loadCustomers = async () => {
       try {
+        setLoading(true);
+
         const response =
           await customerAPI.getAll();
 
         if (cancelled) return;
 
-        setCustomers(response.data || []);
+        setCustomers(
+          Array.isArray(response?.data)
+            ? response.data
+            : []
+        );
       } catch (error) {
         if (cancelled) return;
 
+        console.error(
+          "Load Customers Error:",
+          error
+        );
+
         toast.error(
-          error.message ||
+          error?.message ||
             "Customer তালিকা লোড করা যায়নি"
         );
       } finally {
@@ -104,10 +141,19 @@ const Customers = () => {
       const response =
         await customerAPI.getAll();
 
-      setCustomers(response.data || []);
+      setCustomers(
+        Array.isArray(response?.data)
+          ? response.data
+          : []
+      );
     } catch (error) {
+      console.error(
+        "Reload Customers Error:",
+        error
+      );
+
       toast.error(
-        error.message ||
+        error?.message ||
           "Customer তালিকা আপডেট করা যায়নি"
       );
     }
@@ -128,13 +174,19 @@ const Customers = () => {
 
     return customers.filter((customer) => {
       const name =
-        customer.name?.toLowerCase() || "";
+        String(
+          customer?.name || ""
+        ).toLowerCase();
 
       const phone =
-        customer.phone?.toLowerCase() || "";
+        String(
+          customer?.phone || ""
+        ).toLowerCase();
 
       const address =
-        customer.address?.toLowerCase() || "";
+        String(
+          customer?.address || ""
+        ).toLowerCase();
 
       return (
         name.includes(keyword) ||
@@ -152,7 +204,9 @@ const Customers = () => {
     return customers.reduce(
       (total, customer) =>
         total +
-        Number(customer.dueAmount || 0),
+        Number(
+          customer?.dueAmount || 0
+        ),
       0
     );
   }, [customers]);
@@ -160,15 +214,41 @@ const Customers = () => {
   const dueCustomerCount = useMemo(() => {
     return customers.filter(
       (customer) =>
-        Number(customer.dueAmount || 0) > 0
+        Number(
+          customer?.dueAmount || 0
+        ) > 0
     ).length;
   }, [customers]);
+
+  // ==========================================
+  // Format Money
+  // ==========================================
+
+  const formatMoney = (amount) => {
+    return Number(
+      amount || 0
+    ).toLocaleString(
+      "en-BD",
+      {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }
+    );
+  };
 
   // ==========================================
   // Add Customer Modal
   // ==========================================
 
   const openAddModal = () => {
+    if (!canCreate) {
+      toast.error(
+        "Customer যোগ করার permission নেই"
+      );
+
+      return;
+    }
+
     setEditingCustomer(null);
 
     setForm({
@@ -183,18 +263,31 @@ const Customers = () => {
   // ==========================================
 
   const openEditModal = (customer) => {
+    if (!canUpdate) {
+      toast.error(
+        "Customer পরিবর্তন করার permission নেই"
+      );
+
+      return;
+    }
+
     setEditingCustomer(customer);
 
     setForm({
-      name: customer.name || "",
-      phone: customer.phone || "",
-      address: customer.address || "",
-      notes: customer.notes || "",
+      name:
+        customer?.name || "",
 
-      // Existing customer-এর due এখানে
-      // manually edit করা হবে না.
+      phone:
+        customer?.phone || "",
+
+      address:
+        customer?.address || "",
+
+      notes:
+        customer?.notes || "",
+
       dueAmount:
-        customer.dueAmount ?? "",
+        customer?.dueAmount ?? "",
     });
 
     setShowModal(true);
@@ -241,13 +334,52 @@ const Customers = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const name = form.name.trim();
-    const phone = form.phone.trim();
-    const address = form.address.trim();
-    const notes = form.notes.trim();
+    // ========================================
+    // Permission Check
+    // ========================================
+
+    if (editingCustomer) {
+      if (!canUpdate) {
+        toast.error(
+          "Customer পরিবর্তন করার permission নেই"
+        );
+
+        return;
+      }
+    } else {
+      if (!canCreate) {
+        toast.error(
+          "Customer যোগ করার permission নেই"
+        );
+
+        return;
+      }
+    }
+
+    // ========================================
+    // Form Values
+    // ========================================
+
+    const name =
+      form.name.trim();
+
+    const phone =
+      form.phone.trim();
+
+    const address =
+      form.address.trim();
+
+    const notes =
+      form.notes.trim();
 
     const dueAmount =
-      Number(form.dueAmount || 0);
+      Number(
+        form.dueAmount || 0
+      );
+
+    // ========================================
+    // Validation
+    // ========================================
 
     if (!name) {
       toast.error(
@@ -257,7 +389,12 @@ const Customers = () => {
       return;
     }
 
-    if (dueAmount < 0) {
+    if (
+      !Number.isFinite(
+        dueAmount
+      ) ||
+      dueAmount < 0
+    ) {
       toast.error(
         "Due amount সঠিকভাবে দিন"
       );
@@ -299,8 +436,13 @@ const Customers = () => {
 
         await reloadCustomers();
       } catch (error) {
+        console.error(
+          "Update Customer Error:",
+          error
+        );
+
         toast.error(
-          error.message ||
+          error?.message ||
             "Customer তথ্য সংরক্ষণ করা যায়নি"
         );
       } finally {
@@ -322,8 +464,6 @@ const Customers = () => {
 
       dueAmount,
 
-      // Due থাকলে backend-কে জানানো হচ্ছে
-      // যে এটি due customer.
       paymentType:
         dueAmount > 0
           ? "বাকি"
@@ -351,8 +491,13 @@ const Customers = () => {
 
       await reloadCustomers();
     } catch (error) {
+      console.error(
+        "Create Customer Error:",
+        error
+      );
+
       toast.error(
-        error.message ||
+        error?.message ||
           "Customer তথ্য সংরক্ষণ করা যায়নি"
       );
     } finally {
@@ -365,8 +510,18 @@ const Customers = () => {
   // ==========================================
 
   const openPaymentModal = (customer) => {
+    if (!canDuePayment) {
+      toast.error(
+        "Customer Due Payment নেওয়ার permission নেই"
+      );
+
+      return;
+    }
+
     const currentDue =
-      Number(customer.dueAmount || 0);
+      Number(
+        customer?.dueAmount || 0
+      );
 
     if (currentDue <= 0) {
       toast.info(
@@ -406,16 +561,30 @@ const Customers = () => {
   const handlePayDue = async (event) => {
     event.preventDefault();
 
+    // ========================================
+    // Permission Check
+    // ========================================
+
+    if (!canDuePayment) {
+      toast.error(
+        "Customer Due Payment নেওয়ার permission নেই"
+      );
+
+      return;
+    }
+
     if (!paymentCustomer) {
       return;
     }
 
     const amount =
-      Number(paymentAmount);
+      Number(
+        paymentAmount
+      );
 
     const currentDue =
       Number(
-        paymentCustomer.dueAmount || 0
+        paymentCustomer?.dueAmount || 0
       );
 
     // ========================================
@@ -433,7 +602,9 @@ const Customers = () => {
       return;
     }
 
-    if (amount > currentDue) {
+    if (
+      amount > currentDue
+    ) {
       toast.error(
         "Payment Amount Customer-এর Due-এর চেয়ে বেশি হতে পারবে না"
       );
@@ -446,6 +617,11 @@ const Customers = () => {
 
       // ======================================
       // Backend Due Payment
+      //
+      // Backend এখানে:
+      // 1. Customer due কমাবে
+      // 2. Cash Balance-এ cash inflow যোগ করবে
+      // 3. Transaction-safe update করবে
       // ======================================
 
       await customerAPI.payDue(
@@ -483,7 +659,7 @@ const Customers = () => {
       );
 
       toast.error(
-        error.message ||
+        error?.message ||
           "Due Payment গ্রহণ করা যায়নি"
       );
     } finally {
@@ -495,10 +671,20 @@ const Customers = () => {
   // Delete Customer
   // ==========================================
 
-  const handleDelete = async (customer) => {
+  const handleDelete = async (
+    customer
+  ) => {
+    if (!canDelete) {
+      toast.error(
+        "Customer মুছে ফেলার permission নেই"
+      );
+
+      return;
+    }
+
     const confirmed =
       window.confirm(
-        `"${customer.name}" Customer-কে মুছে ফেলতে চান?`
+        `"${customer?.name}" Customer-কে মুছে ফেলতে চান?`
       );
 
     if (!confirmed) {
@@ -516,25 +702,16 @@ const Customers = () => {
 
       await reloadCustomers();
     } catch (error) {
+      console.error(
+        "Delete Customer Error:",
+        error
+      );
+
       toast.error(
-        error.message ||
+        error?.message ||
           "Customer মুছে ফেলা যায়নি"
       );
     }
-  };
-
-  // ==========================================
-  // Format Money
-  // ==========================================
-
-  const formatMoney = (amount) => {
-    return Number(amount || 0).toLocaleString(
-      "en-BD",
-      {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-      }
-    );
   };
 
   // ==========================================
@@ -551,6 +728,7 @@ const Customers = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
         <div>
+
           <h1 className="text-2xl font-bold text-base-content sm:text-3xl">
             Customer
           </h1>
@@ -558,19 +736,22 @@ const Customers = () => {
           <p className="mt-1 text-sm text-base-content/60">
             Due থাকা Customer-এর তথ্য পরিচালনা করুন
           </p>
+
         </div>
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="btn btn-primary gap-2"
-        >
-          <FaPlus />
+        {canCreate && (
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="btn btn-primary gap-2"
+          >
+            <FaPlus />
 
-          <span>
-            নতুন Customer
-          </span>
-        </button>
+            <span>
+              নতুন Customer
+            </span>
+          </button>
+        )}
 
       </div>
 
@@ -661,6 +842,7 @@ const Customers = () => {
           <table className="table">
 
             <thead>
+
               <tr>
 
                 <th>
@@ -684,6 +866,7 @@ const Customers = () => {
                 </th>
 
               </tr>
+
             </thead>
 
             <tbody>
@@ -737,12 +920,14 @@ const Customers = () => {
 
                     const dueAmount =
                       Number(
-                        customer.dueAmount || 0
+                        customer?.dueAmount || 0
                       );
 
                     return (
                       <tr
-                        key={customer._id}
+                        key={
+                          customer._id
+                        }
                       >
 
                         {/* Customer */}
@@ -846,52 +1031,69 @@ const Customers = () => {
 
                             {/* Pay Due */}
 
-                            {dueAmount > 0 && (
+                            {dueAmount > 0 &&
+                              canDuePayment && (
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openPaymentModal(
+                                      customer
+                                    )
+                                  }
+                                  className="btn btn-sm gap-2 btn-success"
+                                  title="Due Payment"
+                                >
+
+                                  <FaMoneyBillWave />
+
+                                  Pay Due
+
+                                </button>
+
+                              )}
+
+                            {/* Update */}
+
+                            {canUpdate && (
+
                               <button
                                 type="button"
                                 onClick={() =>
-                                  openPaymentModal(
+                                  openEditModal(
                                     customer
                                   )
                                 }
-                                className="btn btn-sm gap-2 btn-success"
-                                title="Due Payment"
+                                className="btn btn-sm btn-square btn-ghost text-info"
+                                title="পরিবর্তন"
                               >
-                                <FaMoneyBillWave />
 
-                                Pay Due
+                                <FaEdit />
+
                               </button>
+
                             )}
-
-                            {/* Edit */}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditModal(
-                                  customer
-                                )
-                              }
-                              className="btn btn-sm btn-square btn-ghost text-info"
-                              title="পরিবর্তন"
-                            >
-                              <FaEdit />
-                            </button>
 
                             {/* Delete */}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDelete(
-                                  customer
-                                )
-                              }
-                              className="btn btn-sm btn-square btn-ghost text-error"
-                              title="মুছে ফেলুন"
-                            >
-                              <FaTrash />
-                            </button>
+                            {canDelete && (
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    customer
+                                  )
+                                }
+                                className="btn btn-sm btn-square btn-ghost text-error"
+                                title="মুছে ফেলুন"
+                              >
+
+                                <FaTrash />
+
+                              </button>
+
+                            )}
 
                           </div>
 
@@ -901,6 +1103,7 @@ const Customers = () => {
                     );
                   }
                 )
+
               )}
 
             </tbody>
@@ -952,12 +1155,14 @@ const Customers = () => {
 
               const dueAmount =
                 Number(
-                  customer.dueAmount || 0
+                  customer?.dueAmount || 0
                 );
 
               return (
                 <div
-                  key={customer._id}
+                  key={
+                    customer._id
+                  }
                   className="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm"
                 >
 
@@ -1065,47 +1270,70 @@ const Customers = () => {
 
                   <div className="flex gap-2">
 
-                    {dueAmount > 0 && (
+                    {/* Due Payment */}
+
+                    {dueAmount > 0 &&
+                      canDuePayment && (
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openPaymentModal(
+                              customer
+                            )
+                          }
+                          className="btn btn-sm flex-1 btn-success"
+                        >
+
+                          <FaMoneyBillWave />
+
+                          Due Pay
+
+                        </button>
+
+                      )}
+
+                    {/* Update */}
+
+                    {canUpdate && (
+
                       <button
                         type="button"
                         onClick={() =>
-                          openPaymentModal(
+                          openEditModal(
                             customer
                           )
                         }
-                        className="btn btn-sm flex-1 btn-success"
+                        className="btn btn-sm flex-1 btn-info btn-outline"
                       >
-                        <FaMoneyBillWave />
 
-                        Due Pay
+                        <FaEdit />
+
+                        পরিবর্তন
+
                       </button>
+
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openEditModal(
-                          customer
-                        )
-                      }
-                      className="btn btn-sm flex-1 btn-info btn-outline"
-                    >
-                      <FaEdit />
+                    {/* Delete */}
 
-                      পরিবর্তন
-                    </button>
+                    {canDelete && (
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleDelete(
-                          customer
-                        )
-                      }
-                      className="btn btn-sm btn-error btn-outline"
-                    >
-                      <FaTrash />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDelete(
+                            customer
+                          )
+                        }
+                        className="btn btn-sm btn-error btn-outline"
+                      >
+
+                        <FaTrash />
+
+                      </button>
+
+                    )}
 
                   </div>
 
@@ -1113,6 +1341,7 @@ const Customers = () => {
               );
             }
           )
+
         )}
 
       </div>
@@ -1192,6 +1421,7 @@ const Customers = () => {
                     />
 
                     {!editingCustomer && (
+
                       <label className="label">
 
                         <span className="label-text-alt text-base-content/50">
@@ -1201,6 +1431,7 @@ const Customers = () => {
                         </span>
 
                       </label>
+
                     )}
 
                   </div>
@@ -1245,18 +1476,23 @@ const Customers = () => {
                     <input
                       type="number"
                       name="dueAmount"
-                      value={form.dueAmount}
+                      value={
+                        form.dueAmount
+                      }
                       onChange={handleChange}
                       min="0"
                       step="0.01"
                       placeholder="0"
-                      disabled={Boolean(
-                        editingCustomer
-                      )}
+                      disabled={
+                        Boolean(
+                          editingCustomer
+                        )
+                      }
                       className="input input-bordered w-full disabled:bg-base-200 disabled:text-base-content"
                     />
 
                     {editingCustomer && (
+
                       <label className="label">
 
                         <span className="label-text-alt text-warning">
@@ -1264,6 +1500,7 @@ const Customers = () => {
                         </span>
 
                       </label>
+
                     )}
 
                   </div>
@@ -1282,7 +1519,9 @@ const Customers = () => {
 
                     <textarea
                       name="address"
-                      value={form.address}
+                      value={
+                        form.address
+                      }
                       onChange={handleChange}
                       placeholder="Customer-এর ঠিকানা"
                       className="textarea textarea-bordered min-h-24 w-full"
@@ -1304,7 +1543,9 @@ const Customers = () => {
 
                     <textarea
                       name="notes"
-                      value={form.notes}
+                      value={
+                        form.notes
+                      }
                       onChange={handleChange}
                       placeholder="অতিরিক্ত তথ্য..."
                       className="textarea textarea-bordered min-h-20 w-full"
@@ -1329,7 +1570,14 @@ const Customers = () => {
 
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={
+                      saving ||
+                      (
+                        editingCustomer
+                          ? !canUpdate
+                          : !canCreate
+                      )
+                    }
                     className="btn btn-primary"
                   >
 
@@ -1434,9 +1682,11 @@ const Customers = () => {
                   </p>
 
                   {paymentCustomer.phone && (
+
                     <p className="mt-1 text-sm text-base-content/60">
                       {paymentCustomer.phone}
                     </p>
+
                   )}
 
                 </div>
@@ -1478,7 +1728,9 @@ const Customers = () => {
                     type="number"
                     min="0.01"
                     step="0.01"
-                    value={paymentAmount}
+                    value={
+                      paymentAmount
+                    }
                     onChange={(event) =>
                       setPaymentAmount(
                         event.target.value
@@ -1549,7 +1801,8 @@ const Customers = () => {
                     type="submit"
                     disabled={
                       payingDue ||
-                      !paymentAmount
+                      !paymentAmount ||
+                      !canDuePayment
                     }
                     className="btn btn-success gap-2"
                   >

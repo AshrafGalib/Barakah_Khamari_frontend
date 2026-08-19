@@ -19,7 +19,11 @@ import {
 
 import { toast } from "react-toastify";
 
-import { supplierAPI } from "../services/api";
+import {
+  authAPI,
+  roleAPI,
+  supplierAPI,
+} from "../services/api";
 
 const EMPTY_FORM = {
   name: "",
@@ -48,9 +52,142 @@ const EMPTY_PAYMENT_FORM = {
   notes: "",
 };
 
+// ======================================================
+// Permission Helpers
+// ======================================================
+
+const normalizePermission = (permission) => {
+  if (!permission) {
+    return "";
+  }
+
+  if (typeof permission === "string") {
+    return permission.trim().toLowerCase();
+  }
+
+  if (typeof permission === "object") {
+    return String(
+      permission.key ||
+        permission.name ||
+        permission.code ||
+        permission.permission ||
+        ""
+    )
+      .trim()
+      .toLowerCase();
+  }
+
+  return "";
+};
+
+const getPermissionList = (user) => {
+  if (!user) {
+    return [];
+  }
+
+  const possiblePermissionSources = [
+    user.permissions,
+    user.role?.permissions,
+    user.rolePermissions,
+    user.permissionList,
+  ];
+
+  for (
+    const source of possiblePermissionSources
+  ) {
+    if (Array.isArray(source)) {
+      return source
+        .map(normalizePermission)
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const hasPermission = (
+  user,
+  requiredPermissions = []
+) => {
+  if (!user) {
+    return false;
+  }
+
+  // Admin has full access
+  const userRole = String(
+    user.role?.name ||
+      user.role ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (userRole === "admin") {
+    return true;
+  }
+
+  const permissions =
+    getPermissionList(user);
+
+  if (!permissions.length) {
+    return false;
+  }
+
+  return requiredPermissions.some(
+    (permission) => {
+      const normalized =
+        String(permission)
+          .trim()
+          .toLowerCase();
+
+      return (
+        permissions.includes(
+          normalized
+        ) ||
+        permissions.includes(
+          `${normalized}.action`
+        )
+      );
+    }
+  );
+};
+
+// Supplier permission aliases.
+// Multiple aliases are supported so the component can work
+// with either singular/plural permission naming.
+const SUPPLIER_PERMISSIONS = {
+  create: [
+    "supplier.create",
+    "suppliers.create",
+    "supplier.add",
+    "suppliers.add",
+  ],
+
+  update: [
+    "supplier.update",
+    "suppliers.update",
+    "supplier.edit",
+    "suppliers.edit",
+  ],
+
+  delete: [
+    "supplier.delete",
+    "suppliers.delete",
+  ],
+
+  payDue: [
+    "supplier.pay_due",
+    "suppliers.pay_due",
+    "supplier.payDue",
+    "suppliers.payDue",
+    "supplier.payment",
+    "suppliers.payment",
+  ],
+};
+
 const Suppliers = () => {
   // ==========================================
-  // States
+  // Supplier States
   // ==========================================
 
   const [suppliers, setSuppliers] =
@@ -79,6 +216,18 @@ const Suppliers = () => {
     useState(false);
 
   // ==========================================
+  // Permission States
+  // ==========================================
+
+  const [currentUser, setCurrentUser] =
+    useState(null);
+
+  const [
+    permissionsLoading,
+    setPermissionsLoading,
+  ] = useState(true);
+
+  // ==========================================
   // Due Payment States
   // ==========================================
 
@@ -105,6 +254,161 @@ const Suppliers = () => {
   ] = useState(false);
 
   // ==========================================
+  // Load Current User + Permissions
+  // ==========================================
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPermissions =
+      async () => {
+        try {
+          setPermissionsLoading(true);
+
+          // --------------------------------------
+          // Get Current Logged-in User
+          // --------------------------------------
+
+          const meResponse =
+            await authAPI.me();
+
+          if (cancelled) {
+            return;
+          }
+
+          const user =
+            meResponse?.data ||
+            meResponse?.user ||
+            null;
+
+          if (!user) {
+            setCurrentUser(null);
+            return;
+          }
+
+          // --------------------------------------
+          // If permissions already exist
+          // --------------------------------------
+
+          const existingPermissions =
+            getPermissionList(user);
+
+          if (
+            existingPermissions.length > 0 ||
+            String(
+              user.role?.name ||
+                user.role ||
+                ""
+            )
+              .trim()
+              .toLowerCase() ===
+              "admin"
+          ) {
+            setCurrentUser(user);
+            return;
+          }
+
+          // --------------------------------------
+          // Load Role Permissions
+          // --------------------------------------
+
+          if (user.roleId) {
+            try {
+              const roleResponse =
+                await roleAPI.getById(
+                  user.roleId
+                );
+
+              if (cancelled) {
+                return;
+              }
+
+              const role =
+                roleResponse?.data ||
+                roleResponse?.role ||
+                null;
+
+              if (role) {
+                setCurrentUser({
+                  ...user,
+                  role: {
+                    ...(typeof user.role ===
+                    "object"
+                      ? user.role
+                      : {}),
+                    ...role,
+                  },
+                  permissions:
+                    role.permissions ||
+                    user.permissions ||
+                    [],
+                });
+
+                return;
+              }
+            } catch (roleError) {
+              console.error(
+                "Load Role Permission Error:",
+                roleError
+              );
+            }
+          }
+
+          setCurrentUser(user);
+        } catch (error) {
+          if (cancelled) {
+            return;
+          }
+
+          console.error(
+            "Load Permission Error:",
+            error
+          );
+
+          setCurrentUser(null);
+        } finally {
+          if (!cancelled) {
+            setPermissionsLoading(false);
+          }
+        }
+      };
+
+    loadPermissions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ==========================================
+  // Permission Checks
+  // ==========================================
+
+  const canCreateSupplier =
+    hasPermission(
+      currentUser,
+      SUPPLIER_PERMISSIONS.create
+    );
+
+  const canUpdateSupplier =
+    hasPermission(
+      currentUser,
+      SUPPLIER_PERMISSIONS.update
+    );
+
+  const canDeleteSupplier =
+    hasPermission(
+      currentUser,
+      SUPPLIER_PERMISSIONS.delete
+    );
+
+  const canPaySupplierDue =
+    hasPermission(
+      currentUser,
+      SUPPLIER_PERMISSIONS.payDue
+    );
+
+  // ==========================================
   // প্রথমবার Supplier Load
   // ==========================================
 
@@ -117,13 +421,17 @@ const Suppliers = () => {
           const response =
             await supplierAPI.getAll();
 
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
 
           setSuppliers(
             response.data || []
           );
         } catch (error) {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
 
           toast.error(
             error.message ||
@@ -233,6 +541,14 @@ const Suppliers = () => {
   // ==========================================
 
   const openAddModal = () => {
+    if (!canCreateSupplier) {
+      toast.error(
+        "Supplier যোগ করার permission আপনার নেই"
+      );
+
+      return;
+    }
+
     setEditingSupplier(null);
 
     setForm({
@@ -249,6 +565,14 @@ const Suppliers = () => {
   const openEditModal = (
     supplier
   ) => {
+    if (!canUpdateSupplier) {
+      toast.error(
+        "Supplier পরিবর্তন করার permission আপনার নেই"
+      );
+
+      return;
+    }
+
     setEditingSupplier(
       supplier
     );
@@ -332,6 +656,28 @@ const Suppliers = () => {
   ) => {
     event.preventDefault();
 
+    // ----------------------------------------
+    // Permission Check
+    // ----------------------------------------
+
+    if (editingSupplier) {
+      if (!canUpdateSupplier) {
+        toast.error(
+          "Supplier পরিবর্তন করার permission আপনার নেই"
+        );
+
+        return;
+      }
+    } else {
+      if (!canCreateSupplier) {
+        toast.error(
+          "Supplier যোগ করার permission আপনার নেই"
+        );
+
+        return;
+      }
+    }
+
     const supplierName =
       form.name.trim();
 
@@ -412,6 +758,14 @@ const Suppliers = () => {
 
   const handleDelete =
     async (supplier) => {
+      if (!canDeleteSupplier) {
+        toast.error(
+          "Supplier মুছে ফেলার permission আপনার নেই"
+        );
+
+        return;
+      }
+
       const confirmed =
         window.confirm(
           `"${supplier.name}" সরবরাহকারীটি মুছে ফেলতে চান?`
@@ -445,6 +799,14 @@ const Suppliers = () => {
 
   const openPaymentModal =
     (supplier) => {
+      if (!canPaySupplierDue) {
+        toast.error(
+          "Supplier Due payment করার permission আপনার নেই"
+        );
+
+        return;
+      }
+
       const currentDue =
         Number(
           supplier.currentDue
@@ -464,12 +826,16 @@ const Suppliers = () => {
 
       setPaymentForm({
         ...EMPTY_PAYMENT_FORM,
+
         amount: "",
+
         paymentMethod:
           "ক্যাশ",
+
         date: new Date()
           .toISOString()
           .slice(0, 10),
+
         notes: "",
       });
 
@@ -526,6 +892,14 @@ const Suppliers = () => {
     async (event) => {
       event.preventDefault();
 
+      if (!canPaySupplierDue) {
+        toast.error(
+          "Supplier Due payment করার permission আপনার নেই"
+        );
+
+        return;
+      }
+
       if (!paymentSupplier) {
         return;
       }
@@ -570,6 +944,7 @@ const Suppliers = () => {
           paymentSupplier._id,
           {
             amount,
+
             paymentMethod:
               paymentForm.paymentMethod,
 
@@ -599,6 +974,24 @@ const Suppliers = () => {
     };
 
   // ==========================================
+  // Permission Loading
+  // ==========================================
+
+  if (permissionsLoading) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <div className="text-center">
+          <span className="loading loading-spinner loading-lg" />
+
+          <p className="mt-3 text-sm text-base-content/50">
+            Permission যাচাই করা হচ্ছে...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
   // Render
   // ==========================================
 
@@ -620,19 +1013,21 @@ const Suppliers = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={
-            openAddModal
-          }
-          className="btn btn-primary gap-2"
-        >
-          <FaPlus />
+        {canCreateSupplier && (
+          <button
+            type="button"
+            onClick={
+              openAddModal
+            }
+            className="btn btn-primary gap-2"
+          >
+            <FaPlus />
 
-          <span>
-            নতুন সরবরাহকারী
-          </span>
-        </button>
+            <span>
+              নতুন সরবরাহকারী
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ====================================
@@ -894,19 +1289,21 @@ const Suppliers = () => {
                                 )}
                               </p>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openPaymentModal(
-                                    supplier
-                                  )
-                                }
-                                className="btn btn-xs btn-warning mt-1 gap-1"
-                              >
-                                <FaMoneyBillWave />
+                              {canPaySupplierDue && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openPaymentModal(
+                                      supplier
+                                    )
+                                  }
+                                  className="btn btn-xs btn-warning mt-1 gap-1"
+                                >
+                                  <FaMoneyBillWave />
 
-                                পরিশোধ
-                              </button>
+                                  পরিশোধ
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <span className="badge badge-success badge-outline">
@@ -936,31 +1333,35 @@ const Suppliers = () => {
 
                         <td>
                           <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditModal(
-                                  supplier
-                                )
-                              }
-                              className="btn btn-sm btn-square btn-ghost text-info"
-                              title="পরিবর্তন"
-                            >
-                              <FaEdit />
-                            </button>
+                            {canUpdateSupplier && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEditModal(
+                                    supplier
+                                  )
+                                }
+                                className="btn btn-sm btn-square btn-ghost text-info"
+                                title="পরিবর্তন"
+                              >
+                                <FaEdit />
+                              </button>
+                            )}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDelete(
-                                  supplier
-                                )
-                              }
-                              className="btn btn-sm btn-square btn-ghost text-error"
-                              title="মুছে ফেলুন"
-                            >
-                              <FaTrash />
-                            </button>
+                            {canDeleteSupplier && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(
+                                    supplier
+                                  )
+                                }
+                                className="btn btn-sm btn-square btn-ghost text-error"
+                                title="মুছে ফেলুন"
+                              >
+                                <FaTrash />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1068,21 +1469,22 @@ const Suppliers = () => {
                         </p>
                       </div>
 
-                      {due > 0 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openPaymentModal(
-                              supplier
-                            )
-                          }
-                          className="btn btn-sm btn-warning gap-2"
-                        >
-                          <FaMoneyBillWave />
+                      {due > 0 &&
+                        canPaySupplierDue && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openPaymentModal(
+                                supplier
+                              )
+                            }
+                            className="btn btn-sm btn-warning gap-2"
+                          >
+                            <FaMoneyBillWave />
 
-                          Due পরিশোধ
-                        </button>
-                      )}
+                            Due পরিশোধ
+                          </button>
+                        )}
                     </div>
                   </div>
 
@@ -1128,33 +1530,40 @@ const Suppliers = () => {
 
                   {/* Actions */}
 
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openEditModal(
-                          supplier
-                        )
-                      }
-                      className="btn btn-sm flex-1 btn-info btn-outline"
-                    >
-                      <FaEdit />
+                  {(canUpdateSupplier ||
+                    canDeleteSupplier) && (
+                    <div className="flex gap-2">
+                      {canUpdateSupplier && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEditModal(
+                              supplier
+                            )
+                          }
+                          className="btn btn-sm flex-1 btn-info btn-outline"
+                        >
+                          <FaEdit />
 
-                      পরিবর্তন
-                    </button>
+                          পরিবর্তন
+                        </button>
+                      )}
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleDelete(
-                          supplier
-                        )
-                      }
-                      className="btn btn-sm btn-error btn-outline"
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
+                      {canDeleteSupplier && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleDelete(
+                              supplier
+                            )
+                          }
+                          className="btn btn-sm btn-error btn-outline"
+                        >
+                          <FaTrash />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             }

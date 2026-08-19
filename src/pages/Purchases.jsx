@@ -18,6 +18,8 @@ import {
   supplierAPI,
 } from "../services/api";
 
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
 
 // ======================================================
 // Current Local Date & Time
@@ -33,37 +35,38 @@ const getCurrentDateTime = () => {
   return local.toISOString().slice(0, 16);
 };
 
-
 // ======================================================
 // Empty Form
 // ======================================================
 
 const createEmptyForm = () => ({
   purchaseDate: getCurrentDateTime(),
-
   invoiceNo: "",
-
   supplierId: "",
-
   productId: "",
-
   quantity: "",
-
   pieces: "",
-
   weight: "",
-
   buyingPrice: "",
-
   paidAmount: "",
-
   paymentMethod: "ক্যাশ",
-
   notes: "",
 });
 
-
 const Purchase = () => {
+  // ====================================================
+  // Permissions
+  // ====================================================
+
+  const { can } = usePermission();
+
+  const canCreatePurchase = can(
+    PERMISSIONS.PURCHASES_CREATE
+  );
+
+  const canDeletePurchase = can(
+    PERMISSIONS.PURCHASES_DELETE
+  );
 
   // ====================================================
   // States
@@ -87,19 +90,15 @@ const Purchase = () => {
 
   const [search, setSearch] = useState("");
 
-
   // ====================================================
   // Initial Data Load
   // ====================================================
 
   useEffect(() => {
-
     let cancelled = false;
 
     const fetchInitialData = async () => {
-
       try {
-
         const [
           purchaseResponse,
           productResponse,
@@ -110,70 +109,52 @@ const Purchase = () => {
           supplierAPI.getAll(),
         ]);
 
-
         if (cancelled) {
           return;
         }
-
 
         setPurchases(
           purchaseResponse?.data || []
         );
 
-
         setProducts(
           productResponse?.data || []
         );
 
-
         setSuppliers(
           supplierResponse?.data || []
         );
-
-
       } catch (error) {
-
         if (cancelled) {
           return;
         }
-
 
         console.error(
           "Initial purchase loading error:",
           error
         );
 
-
         toast.error(
           error.message ||
-          "Purchase data load করা যায়নি"
+            "Purchase data load করা যায়নি"
         );
-
       }
-
     };
 
-
     fetchInitialData();
-
 
     return () => {
       cancelled = true;
     };
-
   }, []);
-
 
   // ====================================================
   // Load Data
   // ====================================================
 
   const loadData = async () => {
-
     try {
-
       setLoading(true);
-
 
       const [
         purchaseResponse,
@@ -185,61 +166,46 @@ const Purchase = () => {
         supplierAPI.getAll(),
       ]);
 
-
       setPurchases(
         purchaseResponse?.data || []
       );
-
 
       setProducts(
         productResponse?.data || []
       );
 
-
       setSuppliers(
         supplierResponse?.data || []
       );
-
-
     } catch (error) {
-
       console.error(
         "Purchase data loading error:",
         error
       );
 
-
       toast.error(
         error.message ||
-        "Purchase data load করা যায়নি"
+          "Purchase data load করা যায়নি"
       );
-
     } finally {
-
       setLoading(false);
-
     }
-
   };
-
 
   // ====================================================
   // Selected Product
   // ====================================================
 
   const selectedProduct = useMemo(() => {
-
     return products.find(
       (product) =>
         String(product._id) ===
         String(form.productId)
     );
-
   }, [
     products,
     form.productId,
   ]);
-
 
   // ====================================================
   // Poultry Product
@@ -249,83 +215,60 @@ const Purchase = () => {
     selectedProduct?.unit ===
     "কেজি + পিস";
 
-
   // ====================================================
   // Form Change
   // ====================================================
 
   const handleChange = (event) => {
-
     const {
       name,
       value,
     } = event.target;
 
-
     setForm((previous) => ({
       ...previous,
       [name]: value,
     }));
-
   };
-
 
   // ====================================================
   // Product Change
   // ====================================================
 
   const handleProductChange = (event) => {
-
     const productId =
       event.target.value;
 
-
     setForm((previous) => ({
       ...previous,
-
       productId,
-
       quantity: "",
-
       pieces: "",
-
       weight: "",
-
       buyingPrice: "",
-
       paidAmount: "",
     }));
-
   };
-
 
   // ====================================================
   // Total Amount
   // ====================================================
 
   const totalAmount = useMemo(() => {
-
     const price =
       Number(form.buyingPrice) || 0;
 
-
     if (isPoultry) {
-
       const weight =
         Number(form.weight) || 0;
 
-
       return weight * price;
-
     }
-
 
     const quantity =
       Number(form.quantity) || 0;
 
-
     return quantity * price;
-
   }, [
     form.buyingPrice,
     form.weight,
@@ -333,14 +276,12 @@ const Purchase = () => {
     isPoultry,
   ]);
 
-
   // ====================================================
   // Paid
   // ====================================================
 
   const paidAmount =
     Number(form.paidAmount) || 0;
-
 
   // ====================================================
   // Due
@@ -351,114 +292,95 @@ const Purchase = () => {
     0
   );
 
-
   // ====================================================
   // Submit
   // ====================================================
 
   const handleSubmit = async (event) => {
-
     event.preventDefault();
 
+    // Permission protection
+    if (!canCreatePurchase) {
+      toast.error(
+        "Purchase যোগ করার অনুমতি নেই"
+      );
+
+      return;
+    }
 
     // Product
     if (!form.productId) {
-
       toast.error(
         "Product নির্বাচন করুন"
       );
 
       return;
-
     }
-
 
     // Poultry validation
     if (isPoultry) {
-
       if (
         !form.pieces ||
         Number(form.pieces) <= 0
       ) {
-
         toast.error(
           "Pieces দিন"
         );
 
         return;
-
       }
-
 
       if (
         !form.weight ||
         Number(form.weight) <= 0
       ) {
-
         toast.error(
           "Weight দিন"
         );
 
         return;
-
       }
-
     }
-
 
     // Normal product
     if (!isPoultry) {
-
       if (
         !form.quantity ||
         Number(form.quantity) <= 0
       ) {
-
         toast.error(
           "Quantity দিন"
         );
 
         return;
-
       }
-
     }
-
 
     // Buying Price
     if (
       !form.buyingPrice ||
       Number(form.buyingPrice) <= 0
     ) {
-
       toast.error(
         "Buying Price দিন"
       );
 
       return;
-
     }
-
 
     // Paid amount
     if (paidAmount > totalAmount) {
-
       toast.error(
         "Paid Amount Total Amount-এর চেয়ে বেশি হতে পারবে না"
       );
 
       return;
-
     }
 
-
     try {
-
       setSaving(true);
 
-
       const payload = {
-
         purchaseDate:
           form.purchaseDate,
 
@@ -503,121 +425,95 @@ const Purchase = () => {
 
         notes:
           form.notes.trim(),
-
       };
-
 
       await purchaseAPI.create(
         payload
       );
 
-
       toast.success(
         "Purchase সফলভাবে যোগ হয়েছে"
       );
-
 
       setForm(
         createEmptyForm()
       );
 
-
       setShowForm(false);
 
-
       await loadData();
-
-
     } catch (error) {
-
       console.error(
         "Purchase save error:",
         error
       );
 
-
       toast.error(
         error.message ||
-        "Purchase save করা যায়নি"
+          "Purchase save করা যায়নি"
       );
-
     } finally {
-
       setSaving(false);
-
     }
-
   };
-
 
   // ====================================================
   // Delete
   // ====================================================
 
   const handleDelete = async (id) => {
+    if (!canDeletePurchase) {
+      toast.error(
+        "Purchase delete করার অনুমতি নেই"
+      );
+
+      return;
+    }
 
     const confirmed =
       window.confirm(
         "এই Purchase delete করতে চান?\n\nPurchase delete করলে Product stock-এর উপর প্রভাব পড়তে পারে।"
       );
 
-
     if (!confirmed) {
       return;
     }
 
-
     try {
-
       await purchaseAPI.delete(id);
-
 
       toast.success(
         "Purchase delete হয়েছে"
       );
 
-
       await loadData();
-
-
     } catch (error) {
-
       console.error(
         "Purchase delete error:",
         error
       );
 
-
       toast.error(
         error.message ||
-        "Purchase delete করা যায়নি"
+          "Purchase delete করা যায়নি"
       );
-
     }
-
   };
-
 
   // ====================================================
   // Search
   // ====================================================
 
   const filteredPurchases = useMemo(() => {
-
     const keyword =
       search.trim().toLowerCase();
 
-
     if (!keyword) {
-
       return purchases;
-
     }
-
 
     return purchases.filter(
       (purchase) => {
-
         const productName =
           purchase.productName ||
           "";
@@ -630,55 +526,43 @@ const Purchase = () => {
           purchase.invoiceNo ||
           "";
 
-
         return (
           productName
             .toLowerCase()
             .includes(keyword) ||
-
           supplierName
             .toLowerCase()
             .includes(keyword) ||
-
           invoiceNo
             .toLowerCase()
             .includes(keyword)
         );
-
       }
     );
-
   }, [
     purchases,
     search,
   ]);
-
 
   // ====================================================
   // Date Format
   // ====================================================
 
   const formatDate = (date) => {
-
     if (!date) {
       return "-";
     }
 
-
     const parsedDate =
       new Date(date);
-
 
     if (
       Number.isNaN(
         parsedDate.getTime()
       )
     ) {
-
       return "-";
-
     }
-
 
     return parsedDate.toLocaleString(
       "en-GB",
@@ -690,39 +574,31 @@ const Purchase = () => {
         minute: "2-digit",
       }
     );
-
   };
-
 
   // ====================================================
   // Summary
   // ====================================================
 
   const summary = useMemo(() => {
-
     return purchases.reduce(
       (result, purchase) => {
-
         result.total +=
           Number(
             purchase.totalAmount
           ) || 0;
-
 
         result.paid +=
           Number(
             purchase.paidAmount
           ) || 0;
 
-
         result.due +=
           Number(
             purchase.dueAmount
           ) || 0;
 
-
         return result;
-
       },
       {
         total: 0,
@@ -730,54 +606,49 @@ const Purchase = () => {
         due: 0,
       }
     );
-
-  }, [
-    purchases,
-  ]);
-
+  }, [purchases]);
 
   // ====================================================
   // Open Form
   // ====================================================
 
   const openPurchaseForm = () => {
+    if (!canCreatePurchase) {
+      toast.error(
+        "Purchase যোগ করার অনুমতি নেই"
+      );
+
+      return;
+    }
 
     setForm(
       createEmptyForm()
     );
 
     setShowForm(true);
-
   };
-
 
   // ====================================================
   // Close Form
   // ====================================================
 
   const closePurchaseForm = () => {
-
     if (saving) {
       return;
     }
 
-
     setShowForm(false);
-
 
     setForm(
       createEmptyForm()
     );
-
   };
-
 
   // ====================================================
   // UI
   // ====================================================
 
   return (
-
     <div className="purchase-page">
 
       {/* ==========================================
@@ -787,7 +658,6 @@ const Purchase = () => {
       <div className="purchase-header">
 
         <div>
-
           <h1>
             Purchase Management
           </h1>
@@ -796,28 +666,27 @@ const Purchase = () => {
             Product কেনার সম্পূর্ণ
             হিসাব ও Purchase History
           </p>
-
         </div>
 
+        {/* Create Permission */}
 
-        <button
-          type="button"
-          className="add-purchase-btn"
-          onClick={
-            openPurchaseForm
-          }
-        >
+        {canCreatePurchase && (
+          <button
+            type="button"
+            className="add-purchase-btn"
+            onClick={
+              openPurchaseForm
+            }
+          >
+            <FaPlus />
 
-          <FaPlus />
-
-          <span>
-            নতুন Purchase
-          </span>
-
-        </button>
+            <span>
+              নতুন Purchase
+            </span>
+          </button>
+        )}
 
       </div>
-
 
       {/* ==========================================
           Summary
@@ -832,7 +701,6 @@ const Purchase = () => {
           </div>
 
           <div>
-
             <span>
               Total Purchase
             </span>
@@ -841,11 +709,9 @@ const Purchase = () => {
               ৳{" "}
               {summary.total.toLocaleString()}
             </strong>
-
           </div>
 
         </div>
-
 
         <div className="summary-card">
 
@@ -854,7 +720,6 @@ const Purchase = () => {
           </div>
 
           <div>
-
             <span>
               Total Paid
             </span>
@@ -863,11 +728,9 @@ const Purchase = () => {
               ৳{" "}
               {summary.paid.toLocaleString()}
             </strong>
-
           </div>
 
         </div>
-
 
         <div className="summary-card">
 
@@ -876,7 +739,6 @@ const Purchase = () => {
           </div>
 
           <div>
-
             <span>
               Total Due
             </span>
@@ -885,13 +747,11 @@ const Purchase = () => {
               ৳{" "}
               {summary.due.toLocaleString()}
             </strong>
-
           </div>
 
         </div>
 
       </div>
-
 
       {/* ==========================================
           Search
@@ -917,7 +777,6 @@ const Purchase = () => {
         </div>
 
       </div>
-
 
       {/* ==========================================
           Table
@@ -948,8 +807,9 @@ const Purchase = () => {
             </h3>
 
             <p>
-              নতুন Purchase যোগ করতে
-              উপরের button ব্যবহার করুন।
+              {canCreatePurchase
+                ? "নতুন Purchase যোগ করতে উপরের button ব্যবহার করুন।"
+                : "কোনো Purchase পাওয়া যায়নি।"}
             </p>
 
           </div>
@@ -998,14 +858,17 @@ const Purchase = () => {
                   Due
                 </th>
 
-                <th>
-                  Action
-                </th>
+                {/* Delete permission থাকলে Action column */}
+
+                {canDeletePurchase && (
+                  <th>
+                    Action
+                  </th>
+                )}
 
               </tr>
 
             </thead>
-
 
             <tbody>
 
@@ -1016,9 +879,7 @@ const Purchase = () => {
                     purchase.unit ===
                     "কেজি + পিস";
 
-
                   return (
-
                     <tr
                       key={
                         purchase._id
@@ -1031,12 +892,10 @@ const Purchase = () => {
                         )}
                       </td>
 
-
                       <td>
                         {purchase.invoiceNo ||
                           "-"}
                       </td>
-
 
                       <td>
 
@@ -1054,7 +913,6 @@ const Purchase = () => {
 
                       </td>
 
-
                       <td>
                         {
                           purchase.supplierName ||
@@ -1062,13 +920,10 @@ const Purchase = () => {
                         }
                       </td>
 
-
                       <td>
 
                         {purchaseIsPoultry ? (
-
                           <>
-
                             <strong>
                               {
                                 purchase.pieces
@@ -1082,13 +937,9 @@ const Purchase = () => {
                               }{" "}
                               kg
                             </small>
-
                           </>
-
                         ) : (
-
                           <>
-
                             <strong>
                               {
                                 purchase.quantity
@@ -1100,47 +951,35 @@ const Purchase = () => {
                                 purchase.unit
                               }
                             </small>
-
                           </>
-
                         )}
 
                       </td>
 
-
                       <td>
-
                         ৳{" "}
                         {Number(
                           purchase.buyingPrice
                         ).toLocaleString()}
-
                       </td>
-
 
                       <td>
 
                         <strong>
-
                           ৳{" "}
                           {Number(
                             purchase.totalAmount
                           ).toLocaleString()}
-
                         </strong>
 
                       </td>
 
-
                       <td>
-
                         ৳{" "}
                         {Number(
                           purchase.paidAmount
                         ).toLocaleString()}
-
                       </td>
-
 
                       <td>
 
@@ -1153,40 +992,37 @@ const Purchase = () => {
                               : "paid-badge"
                           }
                         >
-
                           ৳{" "}
                           {Number(
                             purchase.dueAmount
                           ).toLocaleString()}
-
                         </span>
 
                       </td>
 
+                      {/* Delete Permission */}
 
-                      <td>
+                      {canDeletePurchase && (
+                        <td>
 
-                        <button
-                          type="button"
-                          className="delete-btn"
-                          title="Delete Purchase"
-                          onClick={() =>
-                            handleDelete(
-                              purchase._id
-                            )
-                          }
-                        >
+                          <button
+                            type="button"
+                            className="delete-btn"
+                            title="Delete Purchase"
+                            onClick={() =>
+                              handleDelete(
+                                purchase._id
+                              )
+                            }
+                          >
+                            <FaTrash />
+                          </button>
 
-                          <FaTrash />
-
-                        </button>
-
-                      </td>
+                        </td>
+                      )}
 
                     </tr>
-
                   );
-
                 }
               )}
 
@@ -1198,12 +1034,11 @@ const Purchase = () => {
 
       </div>
 
-
       {/* ==========================================
           Modal
       =========================================== */}
 
-      {showForm && (
+      {showForm && canCreatePurchase && (
 
         <div className="modal-overlay">
 
@@ -1225,7 +1060,6 @@ const Purchase = () => {
 
               </div>
 
-
               <button
                 type="button"
                 className="close-modal"
@@ -1233,13 +1067,10 @@ const Purchase = () => {
                   closePurchaseForm
                 }
               >
-
                 <FaTimes />
-
               </button>
 
             </div>
-
 
             <form
               onSubmit={
@@ -1272,7 +1103,6 @@ const Purchase = () => {
 
                 </div>
 
-
                 <div className="form-group">
 
                   <label>
@@ -1295,7 +1125,6 @@ const Purchase = () => {
                 </div>
 
               </div>
-
 
               {/* Supplier */}
 
@@ -1320,7 +1149,6 @@ const Purchase = () => {
                     Supplier নির্বাচন করুন
                   </option>
 
-
                   {suppliers.map(
                     (supplier) => (
 
@@ -1332,11 +1160,9 @@ const Purchase = () => {
                           supplier._id
                         }
                       >
-
                         {
                           supplier.name
                         }
-
                       </option>
 
                     )
@@ -1346,7 +1172,6 @@ const Purchase = () => {
 
               </div>
 
-
               {/* Product */}
 
               <div className="form-group">
@@ -1355,7 +1180,6 @@ const Purchase = () => {
                   <FaBox />
                   Product *
                 </label>
-
 
                 <select
                   name="productId"
@@ -1372,7 +1196,6 @@ const Purchase = () => {
                     Product নির্বাচন করুন
                   </option>
 
-
                   {products.map(
                     (product) => (
 
@@ -1384,13 +1207,9 @@ const Purchase = () => {
                           product._id
                         }
                       >
-
                         {product.name}
-
                         {" — "}
-
                         {product.unit}
-
                       </option>
 
                     )
@@ -1399,7 +1218,6 @@ const Purchase = () => {
                 </select>
 
               </div>
-
 
               {/* Selected Product Info */}
 
@@ -1421,7 +1239,6 @@ const Purchase = () => {
 
                   </div>
 
-
                   <div>
 
                     <span>
@@ -1435,7 +1252,6 @@ const Purchase = () => {
                     </strong>
 
                   </div>
-
 
                   {isPoultry ? (
 
@@ -1457,7 +1273,6 @@ const Purchase = () => {
                         </strong>
 
                       </div>
-
 
                       <div>
 
@@ -1487,17 +1302,14 @@ const Purchase = () => {
                       </span>
 
                       <strong>
-
                         {
                           selectedProduct
                             .stockQuantity ??
                           0
                         }{" "}
-
                         {
                           selectedProduct.unit
                         }
-
                       </strong>
 
                     </div>
@@ -1507,7 +1319,6 @@ const Purchase = () => {
                 </div>
 
               )}
-
 
               {/* Poultry */}
 
@@ -1536,7 +1347,6 @@ const Purchase = () => {
                     />
 
                   </div>
-
 
                   <div className="form-group">
 
@@ -1578,7 +1388,6 @@ const Purchase = () => {
 
                   </label>
 
-
                   <input
                     type="number"
                     name="quantity"
@@ -1597,7 +1406,6 @@ const Purchase = () => {
 
               )}
 
-
               {/* Buying Price */}
 
               <div className="form-group">
@@ -1613,7 +1421,6 @@ const Purchase = () => {
                     : ""}
 
                 </label>
-
 
                 <input
                   type="number"
@@ -1631,7 +1438,6 @@ const Purchase = () => {
                 />
 
               </div>
-
 
               {/* Total */}
 
@@ -1651,7 +1457,6 @@ const Purchase = () => {
                 </div>
 
               </div>
-
 
               {/* Paid + Due */}
 
@@ -1679,7 +1484,6 @@ const Purchase = () => {
 
                 </div>
 
-
                 <div className="form-group">
 
                   <label>
@@ -1698,7 +1502,6 @@ const Purchase = () => {
 
               </div>
 
-
               {/* Payment Method */}
 
               <div className="form-group">
@@ -1706,7 +1509,6 @@ const Purchase = () => {
                 <label>
                   Payment Method
                 </label>
-
 
                 <select
                   name="paymentMethod"
@@ -1742,7 +1544,6 @@ const Purchase = () => {
 
               </div>
 
-
               {/* Notes */}
 
               <div className="form-group">
@@ -1750,7 +1551,6 @@ const Purchase = () => {
                 <label>
                   Notes
                 </label>
-
 
                 <textarea
                   name="notes"
@@ -1765,7 +1565,6 @@ const Purchase = () => {
                 />
 
               </div>
-
 
               {/* Buttons */}
 
@@ -1784,12 +1583,12 @@ const Purchase = () => {
                   Cancel
                 </button>
 
-
                 <button
                   type="submit"
                   className="save-btn"
                   disabled={
-                    saving
+                    saving ||
+                    !canCreatePurchase
                   }
                 >
 
@@ -1809,7 +1608,6 @@ const Purchase = () => {
 
       )}
 
-
       {/* ==================================================
           Styles
       ================================================== */}
@@ -1824,11 +1622,6 @@ const Purchase = () => {
     color: var(--text-primary, inherit);
     box-sizing: border-box;
   }
-
-
-  /* ==========================================
-     HEADER
-  ========================================== */
 
   .purchase-header {
     display: flex;
@@ -1851,40 +1644,25 @@ const Purchase = () => {
     font-size: 14px;
   }
 
-
-  /* ==========================================
-     BUTTON
-  ========================================== */
-
   .add-purchase-btn {
     border: 1px solid var(--primary-color, #15803d);
     background: var(--primary-color, #15803d);
     color: var(--button-text, #ffffff);
-
     padding: 12px 18px;
     border-radius: 10px;
-
     cursor: pointer;
-
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-
     font-weight: 600;
     white-space: nowrap;
-
     transition: 0.2s;
   }
 
   .add-purchase-btn:hover {
     opacity: 0.9;
   }
-
-
-  /* ==========================================
-     SUMMARY
-  ========================================== */
 
   .summary-grid {
     display: grid;
@@ -1895,61 +1673,42 @@ const Purchase = () => {
 
   .summary-card {
     background: var(--card-bg, transparent);
-
     border: 1px solid var(--border-color, rgba(128,128,128,0.25));
-
     border-radius: 14px;
     padding: 18px;
-
     display: flex;
     align-items: center;
     gap: 14px;
-
     box-shadow: var(--card-shadow, none);
   }
 
   .summary-icon {
     width: 46px;
     height: 46px;
-
     flex-shrink: 0;
-
     border-radius: 11px;
-
     background: var(
       --primary-light,
       rgba(21, 128, 61, 0.12)
     );
-
     color: var(--primary-color, #15803d);
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     font-size: 18px;
   }
 
   .summary-card span {
     display: block;
-
     color: var(--text-secondary, inherit);
-
     font-size: 13px;
-
     margin-bottom: 4px;
   }
 
   .summary-card strong {
     font-size: 20px;
-
     color: var(--text-primary, inherit);
   }
-
-
-  /* ==========================================
-     SEARCH
-  ========================================== */
 
   .purchase-toolbar {
     margin-bottom: 16px;
@@ -1958,41 +1717,28 @@ const Purchase = () => {
   .search-box {
     width: 100%;
     max-width: 550px;
-
     height: 46px;
-
     background: var(--input-bg, transparent);
-
     border: 1px solid var(
       --border-color,
       rgba(128,128,128,0.25)
     );
-
     border-radius: 10px;
-
     padding: 0 14px;
-
     display: flex;
     align-items: center;
-
     gap: 10px;
-
     color: var(--text-secondary, inherit);
-
     box-sizing: border-box;
   }
 
   .search-box input {
     border: none;
     outline: none;
-
     width: 100%;
     height: 100%;
-
     font-size: 14px;
-
     background: transparent;
-
     color: var(--text-primary, inherit);
   }
 
@@ -2001,32 +1747,21 @@ const Purchase = () => {
     opacity: 0.7;
   }
 
-
-  /* ==========================================
-     TABLE
-  ========================================== */
-
   .purchase-table-wrapper {
     width: 100%;
-
     background: var(--card-bg, transparent);
-
     border: 1px solid var(
       --border-color,
       rgba(128,128,128,0.25)
     );
-
     border-radius: 14px;
-
     overflow-x: auto;
-
     box-shadow: var(--card-shadow, none);
   }
 
   .purchase-table {
     width: 100%;
     min-width: 1100px;
-
     border-collapse: collapse;
   }
 
@@ -2035,32 +1770,22 @@ const Purchase = () => {
       --table-header-bg,
       rgba(128,128,128,0.08)
     );
-
     text-align: left;
-
     padding: 14px;
-
     color: var(--text-secondary, inherit);
-
     font-size: 13px;
-
     font-weight: 600;
-
     white-space: nowrap;
   }
 
   .purchase-table td {
     padding: 14px;
-
     border-top: 1px solid var(
       --border-color,
       rgba(128,128,128,0.15)
     );
-
     color: var(--text-primary, inherit);
-
     font-size: 14px;
-
     vertical-align: middle;
   }
 
@@ -2071,37 +1796,23 @@ const Purchase = () => {
 
   .purchase-table td small {
     display: block;
-
     color: var(--text-secondary, inherit);
-
     margin-top: 4px;
-
     font-size: 12px;
   }
-
-
-  /* ==========================================
-     BADGES
-  ========================================== */
 
   .due-badge,
   .paid-badge {
     display: inline-block;
-
     padding: 5px 9px;
-
     border-radius: 7px;
-
     font-size: 12px;
-
     font-weight: 600;
-
     white-space: nowrap;
   }
 
   .due-badge {
     color: var(--danger-color, #dc2626);
-
     background: var(
       --danger-light,
       rgba(220, 38, 38, 0.12)
@@ -2110,39 +1821,26 @@ const Purchase = () => {
 
   .paid-badge {
     color: var(--success-color, #16a34a);
-
     background: var(
       --success-light,
       rgba(22, 163, 74, 0.12)
     );
   }
 
-
-  /* ==========================================
-     DELETE BUTTON
-  ========================================== */
-
   .delete-btn {
     width: 36px;
     height: 36px;
-
     border: none;
-
     border-radius: 8px;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     background: var(
       --danger-light,
       rgba(220, 38, 38, 0.12)
     );
-
     color: var(--danger-color, #dc2626);
-
     cursor: pointer;
-
     transition: 0.2s;
   }
 
@@ -2150,138 +1848,107 @@ const Purchase = () => {
     opacity: 0.8;
   }
 
-
-  /* ==========================================
-     EMPTY / LOADING
-  ========================================== */
-
   .loading,
   .empty-state {
     color: var(--text-secondary, inherit);
+    padding: 60px 20px;
+    text-align: center;
   }
 
   .empty-state h3 {
     color: var(--text-primary, inherit);
+    margin-top: 12px;
   }
 
   .empty-state p {
     color: var(--text-secondary, inherit);
   }
 
+  .loader {
+    width: 38px;
+    height: 38px;
+    margin: 0 auto 12px;
+    border-radius: 50%;
+    border: 4px solid rgba(128,128,128,0.2);
+    border-top-color: var(--primary-color, #15803d);
+    animation: purchase-spin 0.8s linear infinite;
+  }
 
-  /* ==========================================
-     MODAL
-  ========================================== */
+  @keyframes purchase-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
 
   .modal-overlay {
     position: fixed;
     inset: 0;
-
     z-index: 9999;
-
     padding: 20px;
-
     background: rgba(0, 0, 0, 0.55);
-
     display: flex;
-
     align-items: center;
     justify-content: center;
   }
 
   .purchase-modal {
     width: min(700px, 100%);
-
     max-height: 92vh;
-
     overflow-y: auto;
-
     background: var(--card-bg, #1f2937);
-
     color: var(--text-primary, inherit);
-
     border: 1px solid var(
       --border-color,
       rgba(128,128,128,0.25)
     );
-
     border-radius: 16px;
-
     padding: 24px;
-
     box-shadow: var(
       --modal-shadow,
       0 20px 50px rgba(0,0,0,0.25)
     );
   }
 
-
-  /* ==========================================
-     MODAL HEADER
-  ========================================== */
-
   .modal-header {
     display: flex;
-
     justify-content: space-between;
-
     align-items: flex-start;
-
     gap: 15px;
-
     margin-bottom: 22px;
   }
 
   .modal-header h2 {
     margin: 0 0 5px;
-
     font-size: 22px;
-
     color: var(--text-primary, inherit);
   }
 
   .modal-header p {
     margin: 0;
-
     color: var(--text-secondary, inherit);
-
     font-size: 13px;
   }
 
   .close-modal {
     width: 38px;
     height: 38px;
-
     flex-shrink: 0;
-
     border: none;
-
     border-radius: 50%;
-
     background: var(
       --hover-bg,
       rgba(128,128,128,0.12)
     );
-
     color: var(--text-primary, inherit);
-
     cursor: pointer;
-
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-
-  /* ==========================================
-     FORM
-  ========================================== */
-
   .form-grid {
     display: grid;
-
     grid-template-columns: repeat(2, 1fr);
-
     gap: 14px;
   }
 
@@ -2292,17 +1959,11 @@ const Purchase = () => {
 
   .form-group label {
     display: flex;
-
     align-items: center;
-
     gap: 6px;
-
     margin-bottom: 7px;
-
     color: var(--text-primary, inherit);
-
     font-size: 13px;
-
     font-weight: 600;
   }
 
@@ -2310,28 +1971,18 @@ const Purchase = () => {
   .form-group select,
   .form-group textarea {
     width: 100%;
-
     border: 1px solid var(
       --border-color,
       rgba(128,128,128,0.3)
     );
-
     border-radius: 9px;
-
     padding: 11px 12px;
-
     outline: none;
-
     color: var(--text-primary, inherit);
-
     background: var(--input-bg, transparent);
-
     font-size: 14px;
-
     font-family: inherit;
-
     box-sizing: border-box;
-
     transition: 0.2s;
   }
 
@@ -2361,42 +2012,25 @@ const Purchase = () => {
     resize: vertical;
   }
 
-
-  /* ==========================================
-     SELECT OPTION
-  ========================================== */
-
   .form-group select option {
     background: var(--card-bg, #ffffff);
     color: var(--text-primary, #111827);
   }
 
-
-  /* ==========================================
-     PRODUCT INFO
-  ========================================== */
-
   .product-info {
     display: grid;
-
     grid-template-columns: repeat(2, 1fr);
-
     gap: 10px;
-
     margin-bottom: 18px;
-
     padding: 13px;
-
     background: var(
       --secondary-bg,
       rgba(128,128,128,0.06)
     );
-
     border: 1px solid var(
       --border-color,
       rgba(128,128,128,0.2)
     );
-
     border-radius: 10px;
   }
 
@@ -2411,35 +2045,23 @@ const Purchase = () => {
 
   .product-info span {
     color: var(--text-secondary, inherit);
-
     font-size: 11px;
-
     margin-bottom: 3px;
   }
 
   .product-info strong {
     color: var(--text-primary, inherit);
-
     font-size: 13px;
   }
 
-
-  /* ==========================================
-     CALCULATION
-  ========================================== */
-
   .calculation-box {
     margin-bottom: 16px;
-
     padding: 16px;
-
     border-radius: 10px;
-
     background: var(
       --primary-light,
       rgba(21,128,61,0.10)
     );
-
     border: 1px solid var(
       --primary-border,
       rgba(21,128,61,0.25)
@@ -2448,57 +2070,37 @@ const Purchase = () => {
 
   .calculation-box div {
     display: flex;
-
     align-items: center;
-
     justify-content: space-between;
-
     gap: 10px;
   }
 
   .calculation-box span {
     color: var(--primary-color, #15803d);
-
     font-size: 14px;
-
     font-weight: 600;
   }
 
   .calculation-box strong {
     color: var(--primary-color, #15803d);
-
     font-size: 22px;
   }
 
-
-  /* ==========================================
-     ACTION BUTTONS
-  ========================================== */
-
   .modal-actions {
     display: flex;
-
     justify-content: flex-end;
-
     gap: 10px;
-
     padding-top: 5px;
   }
 
   .cancel-btn,
   .save-btn {
     min-width: 120px;
-
     border: none;
-
     padding: 11px 18px;
-
     border-radius: 9px;
-
     cursor: pointer;
-
     font-size: 14px;
-
     font-weight: 600;
   }
 
@@ -2507,7 +2109,6 @@ const Purchase = () => {
       --secondary-bg,
       rgba(128,128,128,0.12)
     );
-
     color: var(--text-primary, inherit);
   }
 
@@ -2516,7 +2117,6 @@ const Purchase = () => {
       --primary-color,
       #15803d
     );
-
     color: var(
       --button-text,
       #ffffff
@@ -2530,14 +2130,8 @@ const Purchase = () => {
   .save-btn:disabled,
   .cancel-btn:disabled {
     opacity: 0.6;
-
     cursor: not-allowed;
   }
-
-
-  /* ==========================================
-     RESPONSIVE
-  ========================================== */
 
   @media (max-width: 900px) {
 
@@ -2554,7 +2148,6 @@ const Purchase = () => {
     }
 
   }
-
 
   @media (max-width: 700px) {
 
@@ -2613,7 +2206,6 @@ const Purchase = () => {
 
   }
 
-
   @media (max-width: 420px) {
 
     .purchase-page {
@@ -2649,9 +2241,7 @@ const Purchase = () => {
 `}</style>
 
     </div>
-
   );
 };
-
 
 export default Purchase;

@@ -9,8 +9,10 @@ import {
 import { toast } from "react-toastify";
 
 import { categoryAPI } from "../services/api";
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
 
-const emptyForm = {
+const EMPTY_FORM = {
   name: "",
   description: "",
   unit: "পিস",
@@ -18,6 +20,24 @@ const emptyForm = {
 };
 
 function Categories() {
+  // ==============================
+  // Permissions
+  // ==============================
+
+  const { can } = usePermission();
+
+  const canCreate = can(
+    PERMISSIONS.CATEGORIES_CREATE
+  );
+
+  const canUpdate = can(
+    PERMISSIONS.CATEGORIES_UPDATE
+  );
+
+  const canDelete = can(
+    PERMISSIONS.CATEGORIES_DELETE
+  );
+
   // ==============================
   // States
   // ==============================
@@ -28,9 +48,12 @@ function Categories() {
 
   const [showModal, setShowModal] = useState(false);
 
-  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingCategory, setEditingCategory] =
+    useState(null);
 
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+  });
 
   const [loading, setLoading] = useState(true);
 
@@ -45,17 +68,26 @@ function Categories() {
 
     const loadCategories = async () => {
       try {
-        const response = await categoryAPI.getAll();
+        setLoading(true);
+
+        const response =
+          await categoryAPI.getAll();
 
         if (!cancelled) {
-          setCategories(response.data || []);
+          setCategories(
+            response?.data || []
+          );
         }
       } catch (error) {
-        console.error("Category Load Error:", error);
+        console.error(
+          "Category Load Error:",
+          error
+        );
 
         if (!cancelled) {
           toast.error(
-            error.message || "ক্যাটাগরি লোড করা যায়নি"
+            error.message ||
+              "ক্যাটাগরি লোড করা যায়নি"
           );
         }
       } finally {
@@ -77,23 +109,30 @@ function Categories() {
   // ==============================
 
   const filteredCategories = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = search
+      .trim()
+      .toLowerCase();
 
     if (!keyword) {
       return categories;
     }
 
-    return categories.filter((category) => {
-      const name = category.name?.toLowerCase() || "";
+    return categories.filter(
+      (category) => {
+        const name =
+          category.name?.toLowerCase() ||
+          "";
 
-      const description =
-        category.description?.toLowerCase() || "";
+        const description =
+          category.description?.toLowerCase() ||
+          "";
 
-      return (
-        name.includes(keyword) ||
-        description.includes(keyword)
-      );
-    });
+        return (
+          name.includes(keyword) ||
+          description.includes(keyword)
+        );
+      }
+    );
   }, [categories, search]);
 
   // ==============================
@@ -101,8 +140,19 @@ function Categories() {
   // ==============================
 
   const openAddModal = () => {
+    if (!canCreate) {
+      toast.error(
+        "আপনার Category তৈরি করার permission নেই"
+      );
+      return;
+    }
+
     setEditingCategory(null);
-    setForm(emptyForm);
+
+    setForm({
+      ...EMPTY_FORM,
+    });
+
     setShowModal(true);
   };
 
@@ -111,13 +161,26 @@ function Categories() {
   // ==============================
 
   const openEditModal = (category) => {
+    if (!canUpdate) {
+      toast.error(
+        "আপনার Category পরিবর্তন করার permission নেই"
+      );
+      return;
+    }
+
     setEditingCategory(category);
 
     setForm({
       name: category.name || "",
-      description: category.description || "",
-      unit: category.unit || "পিস",
-      status: category.status || "সক্রিয়",
+
+      description:
+        category.description || "",
+
+      unit:
+        category.unit || "পিস",
+
+      status:
+        category.status || "সক্রিয়",
     });
 
     setShowModal(true);
@@ -133,8 +196,12 @@ function Categories() {
     }
 
     setShowModal(false);
+
     setEditingCategory(null);
-    setForm(emptyForm);
+
+    setForm({
+      ...EMPTY_FORM,
+    });
   };
 
   // ==============================
@@ -142,7 +209,10 @@ function Categories() {
   // ==============================
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
     setForm((previous) => ({
       ...previous,
@@ -157,10 +227,34 @@ function Categories() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    // ==========================
+    // Permission Guard
+    // ==========================
+
+    if (editingCategory && !canUpdate) {
+      toast.error(
+        "আপনার Category পরিবর্তন করার permission নেই"
+      );
+      return;
+    }
+
+    if (!editingCategory && !canCreate) {
+      toast.error(
+        "আপনার Category তৈরি করার permission নেই"
+      );
+      return;
+    }
+
+    // ==========================
+    // Validation
+    // ==========================
+
     const name = form.name.trim();
 
     if (!name) {
-      toast.error("ক্যাটাগরির নাম দিন");
+      toast.error(
+        "ক্যাটাগরির নাম দিন"
+      );
       return;
     }
 
@@ -172,22 +266,30 @@ function Categories() {
       // ==========================
 
       if (editingCategory) {
-        const response = await categoryAPI.update(
-          editingCategory._id,
-          {
-            name,
-            description: form.description.trim(),
-            unit: form.unit,
-            status: form.status,
-          }
-        );
+        const response =
+          await categoryAPI.update(
+            editingCategory._id,
+            {
+              name,
 
-        setCategories((previous) =>
-          previous.map((category) =>
-            category._id === editingCategory._id
-              ? response.data
-              : category
-          )
+              description:
+                form.description.trim(),
+
+              unit: form.unit,
+
+              status: form.status,
+            }
+          );
+
+        setCategories(
+          (previous) =>
+            previous.map(
+              (category) =>
+                category._id ===
+                editingCategory._id
+                  ? response.data
+                  : category
+            )
         );
 
         toast.success(
@@ -200,17 +302,24 @@ function Categories() {
       // ==========================
 
       else {
-        const response = await categoryAPI.create({
-          name,
-          description: form.description.trim(),
-          unit: form.unit,
-          status: form.status,
-        });
+        const response =
+          await categoryAPI.create({
+            name,
 
-        setCategories((previous) => [
-          response.data,
-          ...previous,
-        ]);
+            description:
+              form.description.trim(),
+
+            unit: form.unit,
+
+            status: form.status,
+          });
+
+        setCategories(
+          (previous) => [
+            response.data,
+            ...previous,
+          ]
+        );
 
         toast.success(
           "ক্যাটাগরি সফলভাবে যোগ হয়েছে"
@@ -218,13 +327,21 @@ function Categories() {
       }
 
       setShowModal(false);
+
       setEditingCategory(null);
-      setForm(emptyForm);
+
+      setForm({
+        ...EMPTY_FORM,
+      });
     } catch (error) {
-      console.error("Category Save Error:", error);
+      console.error(
+        "Category Save Error:",
+        error
+      );
 
       toast.error(
-        error.message || "ক্যাটাগরি সংরক্ষণ করা যায়নি"
+        error.message ||
+          "ক্যাটাগরি সংরক্ষণ করা যায়নি"
       );
     } finally {
       setSaving(false);
@@ -236,9 +353,17 @@ function Categories() {
   // ==============================
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "আপনি কি এই ক্যাটাগরিটি মুছে ফেলতে চান?"
-    );
+    if (!canDelete) {
+      toast.error(
+        "আপনার Category মুছে ফেলার permission নেই"
+      );
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "আপনি কি এই ক্যাটাগরিটি মুছে ফেলতে চান?"
+      );
 
     if (!confirmed) {
       return;
@@ -247,20 +372,26 @@ function Categories() {
     try {
       await categoryAPI.delete(id);
 
-      setCategories((previous) =>
-        previous.filter(
-          (category) => category._id !== id
-        )
+      setCategories(
+        (previous) =>
+          previous.filter(
+            (category) =>
+              category._id !== id
+          )
       );
 
       toast.success(
         "ক্যাটাগরি সফলভাবে মুছে ফেলা হয়েছে"
       );
     } catch (error) {
-      console.error("Category Delete Error:", error);
+      console.error(
+        "Category Delete Error:",
+        error
+      );
 
       toast.error(
-        error.message || "ক্যাটাগরি মুছে ফেলা যায়নি"
+        error.message ||
+          "ক্যাটাগরি মুছে ফেলা যায়নি"
       );
     }
   };
@@ -270,45 +401,52 @@ function Categories() {
   // ==============================
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
+    <div className="mx-auto w-full max-w-7xl">
 
       {/* ================================= */}
       {/* Header */}
       {/* ================================= */}
 
       <div className="mb-5 sm:mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
           {/* Title */}
 
           <div className="flex items-center gap-3">
 
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <FaTags className="text-lg sm:text-xl text-primary" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 sm:h-12 sm:w-12">
+
+              <FaTags className="text-lg text-primary sm:text-xl" />
+
             </div>
 
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">
+
+              <h1 className="text-xl font-bold sm:text-2xl">
                 ক্যাটাগরি
               </h1>
 
-              <p className="text-xs sm:text-sm text-base-content/60 mt-1">
+              <p className="mt-1 text-xs text-base-content/60 sm:text-sm">
                 পণ্যের ক্যাটাগরি পরিচালনা করুন
               </p>
+
             </div>
 
           </div>
 
           {/* Add Button */}
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="btn btn-primary w-full sm:w-auto gap-2"
-          >
-            <FaPlus />
-            নতুন ক্যাটাগরি
-          </button>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="btn btn-primary w-full gap-2 sm:w-auto"
+            >
+              <FaPlus />
+              নতুন ক্যাটাগরি
+            </button>
+          )}
 
         </div>
       </div>
@@ -317,11 +455,11 @@ function Categories() {
       {/* Search */}
       {/* ================================= */}
 
-      <div className="card bg-base-100 border border-base-300 shadow-sm mb-5">
+      <div className="card mb-5 border border-base-300 bg-base-100 shadow-sm">
 
         <div className="card-body p-4">
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
             {/* Search Input */}
 
@@ -344,10 +482,13 @@ function Categories() {
             {/* Count */}
 
             <p className="text-sm text-base-content/60">
+
               মোট ক্যাটাগরি:{" "}
+
               <span className="font-bold text-base-content">
                 {filteredCategories.length}
               </span>
+
             </p>
 
           </div>
@@ -368,7 +509,7 @@ function Categories() {
           {/* Desktop Table */}
           {/* ================================= */}
 
-          <div className="hidden md:block card bg-base-100 border border-base-300 shadow-sm overflow-hidden">
+          <div className="card hidden overflow-hidden border border-base-300 bg-base-100 shadow-sm md:block">
 
             <div className="overflow-x-auto">
 
@@ -377,14 +518,24 @@ function Categories() {
                 <thead>
 
                   <tr>
+
                     <th>#</th>
+
                     <th>ক্যাটাগরি</th>
+
                     <th>বর্ণনা</th>
+
                     <th>ইউনিট</th>
+
                     <th>স্ট্যাটাস</th>
-                    <th className="text-right">
-                      অ্যাকশন
-                    </th>
+
+                    {(canUpdate ||
+                      canDelete) && (
+                      <th className="text-right">
+                        অ্যাকশন
+                      </th>
+                    )}
+
                   </tr>
 
                 </thead>
@@ -392,8 +543,15 @@ function Categories() {
                 <tbody>
 
                   {filteredCategories.map(
-                    (category, index) => (
-                      <tr key={category._id}>
+                    (
+                      category,
+                      index
+                    ) => (
+                      <tr
+                        key={
+                          category._id
+                        }
+                      >
 
                         {/* Number */}
 
@@ -407,8 +565,10 @@ function Categories() {
 
                           <div className="flex items-center gap-3">
 
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+
                               <FaTags className="text-primary" />
+
                             </div>
 
                             <span className="font-semibold">
@@ -459,43 +619,50 @@ function Categories() {
 
                         {/* Actions */}
 
-                        <td>
+                        {(canUpdate ||
+                          canDelete) && (
+                          <td>
 
-                          <div className="flex justify-end gap-1">
+                            <div className="flex justify-end gap-1">
 
-                            {/* Edit */}
+                              {/* Edit */}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditModal(
-                                  category
-                                )
-                              }
-                              className="btn btn-sm btn-ghost text-info"
-                              title="পরিবর্তন করুন"
-                            >
-                              <FaEdit />
-                            </button>
+                              {canUpdate && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openEditModal(
+                                      category
+                                    )
+                                  }
+                                  className="btn btn-sm btn-ghost text-info"
+                                  title="পরিবর্তন করুন"
+                                >
+                                  <FaEdit />
+                                </button>
+                              )}
 
-                            {/* Delete */}
+                              {/* Delete */}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDelete(
-                                  category._id
-                                )
-                              }
-                              className="btn btn-sm btn-ghost text-error"
-                              title="মুছে ফেলুন"
-                            >
-                              <FaTrash />
-                            </button>
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDelete(
+                                      category._id
+                                    )
+                                  }
+                                  className="btn btn-sm btn-ghost text-error"
+                                  title="মুছে ফেলুন"
+                                >
+                                  <FaTrash />
+                                </button>
+                              )}
 
-                          </div>
+                            </div>
 
-                        </td>
+                          </td>
+                        )}
 
                       </tr>
                     )
@@ -507,7 +674,8 @@ function Categories() {
 
               {/* Empty */}
 
-              {filteredCategories.length === 0 && (
+              {filteredCategories.length ===
+                0 && (
                 <EmptyState />
               )}
 
@@ -519,13 +687,16 @@ function Categories() {
           {/* Mobile Cards */}
           {/* ================================= */}
 
-          <div className="md:hidden space-y-3">
+          <div className="space-y-3 md:hidden">
 
             {filteredCategories.map(
-              (category, index) => (
+              (
+                category,
+                index
+              ) => (
                 <div
                   key={category._id}
-                  className="card bg-base-100 border border-base-300 shadow-sm"
+                  className="card border border-base-300 bg-base-100 shadow-sm"
                 >
 
                   <div className="card-body p-4">
@@ -534,20 +705,23 @@ function Categories() {
 
                     <div className="flex items-start justify-between gap-3">
 
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex min-w-0 items-center gap-3">
 
-                        <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+
                           <FaTags className="text-primary" />
+
                         </div>
 
                         <div className="min-w-0">
 
-                          <h2 className="font-bold truncate">
+                          <h2 className="truncate font-bold">
                             {category.name}
                           </h2>
 
                           <p className="text-xs text-base-content/50">
-                            ক্যাটাগরি #{index + 1}
+                            ক্যাটাগরি #
+                            {index + 1}
                           </p>
 
                         </div>
@@ -569,20 +743,20 @@ function Categories() {
 
                     {/* Description */}
 
-                    <p className="text-sm text-base-content/60 mt-3">
+                    <p className="mt-3 text-sm text-base-content/60">
                       {category.description ||
                         "কোনো বর্ণনা নেই"}
                     </p>
 
                     {/* Unit */}
 
-                    <div className="rounded-xl bg-base-200 p-3 mt-2">
+                    <div className="mt-2 rounded-xl bg-base-200 p-3">
 
                       <p className="text-xs text-base-content/50">
                         ইউনিট
                       </p>
 
-                      <p className="font-semibold mt-1">
+                      <p className="mt-1 font-semibold">
                         {category.unit}
                       </p>
 
@@ -590,33 +764,53 @@ function Categories() {
 
                     {/* Actions */}
 
-                    <div className="grid grid-cols-2 gap-2 mt-3">
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openEditModal(category)
-                        }
-                        className="btn btn-sm btn-outline btn-info"
+                    {(canUpdate ||
+                      canDelete) && (
+                      <div
+                        className={`mt-3 grid gap-2 ${
+                          canUpdate &&
+                          canDelete
+                            ? "grid-cols-2"
+                            : "grid-cols-1"
+                        }`}
                       >
-                        <FaEdit />
-                        পরিবর্তন
-                      </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleDelete(
-                            category._id
-                          )
-                        }
-                        className="btn btn-sm btn-outline btn-error"
-                      >
-                        <FaTrash />
-                        মুছুন
-                      </button>
+                        {/* Edit */}
 
-                    </div>
+                        {canUpdate && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEditModal(
+                                category
+                              )
+                            }
+                            className="btn btn-sm btn-outline btn-info"
+                          >
+                            <FaEdit />
+                            পরিবর্তন
+                          </button>
+                        )}
+
+                        {/* Delete */}
+
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDelete(
+                                category._id
+                              )
+                            }
+                            className="btn btn-sm btn-outline btn-error"
+                          >
+                            <FaTrash />
+                            মুছুন
+                          </button>
+                        )}
+
+                      </div>
+                    )}
 
                   </div>
 
@@ -626,7 +820,8 @@ function Categories() {
 
             {/* Empty */}
 
-            {filteredCategories.length === 0 && (
+            {filteredCategories.length ===
+              0 && (
               <EmptyState />
             )}
 
@@ -647,13 +842,15 @@ function Categories() {
 
             <div className="mb-5">
 
-              <h3 className="text-lg sm:text-xl font-bold">
+              <h3 className="text-lg font-bold sm:text-xl">
+
                 {editingCategory
                   ? "ক্যাটাগরি পরিবর্তন"
                   : "নতুন ক্যাটাগরি"}
+
               </h3>
 
-              <p className="text-xs sm:text-sm text-base-content/50 mt-1">
+              <p className="mt-1 text-xs text-base-content/50 sm:text-sm">
                 ক্যাটাগরির তথ্য পূরণ করুন
               </p>
 
@@ -705,7 +902,9 @@ function Categories() {
 
                 <textarea
                   name="description"
-                  value={form.description}
+                  value={
+                    form.description
+                  }
                   onChange={handleChange}
                   placeholder="ক্যাটাগরি সম্পর্কে সংক্ষিপ্ত বর্ণনা"
                   className="textarea textarea-bordered w-full"
@@ -794,7 +993,7 @@ function Categories() {
 
               {/* Buttons */}
 
-              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
 
                 <button
                   type="button"
@@ -807,7 +1006,12 @@ function Categories() {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    (editingCategory
+                      ? !canUpdate
+                      : !canCreate)
+                  }
                   className="btn btn-primary w-full sm:w-auto"
                 >
 
@@ -856,7 +1060,7 @@ function Categories() {
 
 function LoadingState() {
   return (
-    <div className="card bg-base-100 border border-base-300 shadow-sm">
+    <div className="card border border-base-300 bg-base-100 shadow-sm">
 
       <div className="card-body">
 
@@ -864,7 +1068,7 @@ function LoadingState() {
 
           <span className="loading loading-spinner loading-lg text-primary" />
 
-          <p className="text-sm text-base-content/50 mt-3">
+          <p className="mt-3 text-sm text-base-content/50">
             ক্যাটাগরি লোড হচ্ছে...
           </p>
 
@@ -882,19 +1086,19 @@ function LoadingState() {
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
+    <div className="flex flex-col items-center justify-center px-4 py-12">
 
-      <div className="w-14 h-14 rounded-full bg-base-200 flex items-center justify-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-base-200">
 
         <FaTags className="text-2xl text-base-content/30" />
 
       </div>
 
-      <h3 className="font-semibold mt-4">
+      <h3 className="mt-4 font-semibold">
         কোনো ক্যাটাগরি পাওয়া যায়নি
       </h3>
 
-      <p className="text-sm text-base-content/50 text-center mt-1">
+      <p className="mt-1 text-center text-sm text-base-content/50">
         নতুন ক্যাটাগরি যোগ করুন অথবা অন্য নামে খুঁজুন।
       </p>
 

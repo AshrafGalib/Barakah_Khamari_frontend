@@ -16,75 +16,106 @@ import {
 
 import { NavLink } from "react-router";
 
+import usePermission from "../../hooks/usePermission";
+import { PERMISSIONS } from "../../constants/permissions";;
+
 const menuItems = [
   {
     name: "ড্যাশবোর্ড",
     icon: FaHome,
     path: "/dashboard",
+    permission: PERMISSIONS.DASHBOARD_VIEW,
   },
   {
     name: "বিক্রয়",
     icon: FaCashRegister,
     path: "/pos",
+    permission: PERMISSIONS.POS_ACCESS,
   },
   {
     name: "পণ্যসমূহ",
     icon: FaBoxOpen,
     path: "/products",
+    permission: PERMISSIONS.PRODUCTS_VIEW,
   },
   {
     name: "ক্যাটাগরি",
     icon: FaTags,
     path: "/categories",
+    permission: PERMISSIONS.CATEGORIES_VIEW,
   },
   {
     name: "ক্রয়",
     icon: FaShoppingCart,
     path: "/purchases",
+    permission: PERMISSIONS.PURCHASES_VIEW,
   },
   {
     name: "সরবরাহকারী",
     icon: FaTruck,
     path: "/suppliers",
+    permission: PERMISSIONS.SUPPLIERS_VIEW,
   },
   {
     name: "মজুদ",
     icon: FaWarehouse,
     path: "/inventory",
+    permission: PERMISSIONS.INVENTORY_VIEW,
   },
   {
     name: "বিক্রয়ের ইতিহাস",
     icon: FaReceipt,
     path: "/sales",
+    permission: PERMISSIONS.SALES_VIEW,
   },
   {
     name: "খরচ",
     icon: FaMoneyBillWave,
     path: "/expenses",
+    permission: PERMISSIONS.EXPENSES_VIEW,
   },
   {
     name: "ক্রেতা",
     icon: FaUsers,
     path: "/customers",
+    permission: PERMISSIONS.CUSTOMERS_VIEW,
   },
   {
     name: "রিপোর্ট",
     icon: FaChartBar,
     path: "/reports",
+    permission: PERMISSIONS.REPORTS_VIEW,
   },
   {
     name: "সেটিংস",
     icon: FaCog,
     path: "/settings",
+    permission: null,
   },
 ];
 
-function Sidebar({ sidebarOpen, setSidebarOpen }) {
+function Sidebar({
+  sidebarOpen,
+  setSidebarOpen,
+}) {
+  const { can } = usePermission();
+
   const handleMenuClick = () => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
   };
+
+  const visibleMenuItems =
+    menuItems.filter((item) => {
+      // Settings এখন সবাই দেখতে পারবে।
+      // পরে চাইলে settings-এর জন্য আলাদা permission দিতে পারি।
+      if (!item.permission) {
+        return true;
+      }
+
+      return can(item.permission);
+    });
 
   return (
     <aside
@@ -103,9 +134,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
         transition-transform
         duration-300
         ease-in-out
-
         lg:translate-x-0
-
         ${
           sidebarOpen
             ? "translate-x-0"
@@ -125,10 +154,11 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
           </p>
         </div>
 
-        {/* Mobile Close Button */}
         <button
           type="button"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
           className="btn btn-sm btn-circle btn-ghost lg:hidden"
           aria-label="Sidebar বন্ধ করুন"
         >
@@ -143,7 +173,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
         </p>
 
         <ul className="space-y-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
 
             return (
@@ -163,7 +193,6 @@ function Sidebar({ sidebarOpen, setSidebarOpen }) {
                     duration-200
                     text-sm
                     font-medium
-
                     ${
                       isActive
                         ? "bg-primary text-primary-content shadow-sm"

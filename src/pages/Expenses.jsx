@@ -15,6 +15,8 @@ import {
 import { toast } from "react-toastify";
 
 import { expenseAPI } from "../services/api";
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
 
 // ======================================================
 // Helper: Local Date YYYY-MM-DD
@@ -53,22 +55,24 @@ const parseExpenseDate = (value) => {
 };
 
 // ======================================================
-// Helper: Normalize API Response
-// ======================================================
-
-const getExpenseData = (response) => {
-  if (Array.isArray(response?.data)) {
-    return response.data;
-  }
-
-  return [];
-};
-
-// ======================================================
 // Expense Component
 // ======================================================
 
 const Expense = () => {
+  // ======================================================
+  // Permissions
+  // ======================================================
+
+  const { can } = usePermission();
+
+  const canCreate = can(
+    PERMISSIONS.EXPENSES_CREATE
+  );
+
+  const canDelete = can(
+    PERMISSIONS.EXPENSES_DELETE
+  );
+
   // ======================================================
   // States
   // ======================================================
@@ -125,10 +129,11 @@ const Expense = () => {
       const response =
         await expenseAPI.getAll();
 
-      const expenseData =
-        getExpenseData(response);
-
-      setExpenses(expenseData);
+      setExpenses(
+        Array.isArray(response?.data)
+          ? response.data
+          : []
+      );
     } catch (error) {
       console.error(
         "Load Expense Error:",
@@ -149,43 +154,57 @@ const Expense = () => {
   // ======================================================
 
   useEffect(() => {
-  let cancelled = false;
+    let cancelled = false;
 
-  const fetchExpenses = async () => {
-    try {
-      const response = await expenseAPI.getAll();
+    const loadExpenses = async () => {
+      try {
+        const response =
+          await expenseAPI.getAll();
 
-      if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
-      setExpenses(response?.data || []);
-    } catch (error) {
-      if (cancelled) return;
+        setExpenses(
+          Array.isArray(response?.data)
+            ? response.data
+            : []
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
 
-      console.error("Load Expense Error:", error);
+        console.error(
+          "Load Expense Error:",
+          error
+        );
 
-      toast.error(
-        error.message || "Expense data load করা যায়নি"
-      );
-    } finally {
-      if (!cancelled) {
-        setLoading(false);
+        toast.error(
+          error?.message ||
+            "Expense data load করা যায়নি"
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    }
-  };
+    };
 
-  fetchExpenses();
+    loadExpenses();
 
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ======================================================
   // Format Date
   // ======================================================
 
   const formatDate = (value) => {
-    const date = parseExpenseDate(value);
+    const date =
+      parseExpenseDate(value);
 
     if (!date) {
       return "-";
@@ -206,7 +225,8 @@ const Expense = () => {
   // ======================================================
 
   const formatTime = (value) => {
-    const date = parseExpenseDate(value);
+    const date =
+      parseExpenseDate(value);
 
     if (!date) {
       return "-";
@@ -269,11 +289,53 @@ const Expense = () => {
   };
 
   // ======================================================
+  // Open Expense Form
+  // ======================================================
+
+  const openExpenseForm = () => {
+    if (!canCreate) {
+      toast.error(
+        "Expense যোগ করার permission নেই"
+      );
+
+      return;
+    }
+
+    resetForm();
+    setShowForm(true);
+  };
+
+  // ======================================================
+  // Close Expense Form
+  // ======================================================
+
+  const closeExpenseForm = () => {
+    if (saving) {
+      return;
+    }
+
+    resetForm();
+    setShowForm(false);
+  };
+
+  // ======================================================
   // Create Expense
   // ======================================================
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    // ==================================================
+    // Permission
+    // ==================================================
+
+    if (!canCreate) {
+      toast.error(
+        "Expense যোগ করার permission নেই"
+      );
+
+      return;
+    }
 
     // ==================================================
     // Date
@@ -346,21 +408,18 @@ const Expense = () => {
       setSaving(true);
 
       // ==================================================
-      // IMPORTANT DATE FIX
-      //
-      // YYYY-MM-DD কে সরাসরি new Date()
-      // দিয়ে পাঠানো হচ্ছে না।
-      //
-      // এখানে selected date-এর সাথে current local
-      // time যোগ করা হচ্ছে।
+      // Selected Local Date + Current Local Time
       // ==================================================
 
       const now = new Date();
 
-      const [year, month, day] =
-        formData.expenseDate
-          .split("-")
-          .map(Number);
+      const [
+        year,
+        month,
+        day,
+      ] = formData.expenseDate
+        .split("-")
+        .map(Number);
 
       const localExpenseDate =
         new Date(
@@ -424,7 +483,6 @@ const Expense = () => {
           ]
         );
       } else {
-        // fallback
         await fetchExpenses();
       }
 
@@ -434,7 +492,6 @@ const Expense = () => {
       );
 
       resetForm();
-
       setShowForm(false);
     } catch (error) {
       console.error(
@@ -468,18 +525,12 @@ const Expense = () => {
             return false;
           }
 
-          // ==================================================
-          // Expense local date
-          // ==================================================
-
           const expenseLocalDate =
             getLocalDateString(
               expenseDate
             );
 
-          // ==================================================
           // From Date
-          // ==================================================
 
           if (
             fromDate &&
@@ -488,9 +539,7 @@ const Expense = () => {
             return false;
           }
 
-          // ==================================================
           // To Date
-          // ==================================================
 
           if (
             toDate &&
@@ -499,9 +548,7 @@ const Expense = () => {
             return false;
           }
 
-          // ==================================================
           // Category
-          // ==================================================
 
           if (
             categoryFilter &&
@@ -561,9 +608,19 @@ const Expense = () => {
   // Delete Expense
   // ======================================================
 
-  const handleDelete = async (
-    id
-  ) => {
+  const handleDelete = async (id) => {
+    // ==================================================
+    // Permission
+    // ==================================================
+
+    if (!canDelete) {
+      toast.error(
+        "Expense delete করার permission নেই"
+      );
+
+      return;
+    }
+
     if (!id) {
       toast.error(
         "Invalid Expense ID"
@@ -650,28 +707,31 @@ const Expense = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="add-expense-btn"
-          onClick={() =>
-            setShowForm(
-              (previous) =>
-                !previous
-            )
-          }
-        >
-          {showForm ? (
-            <>
-              <FaTimes />
-              Close
-            </>
-          ) : (
-            <>
-              <FaPlus />
-              Add Expense
-            </>
-          )}
-        </button>
+        {/* Create Permission */}
+
+        {canCreate && (
+          <button
+            type="button"
+            className="add-expense-btn"
+            onClick={
+              showForm
+                ? closeExpenseForm
+                : openExpenseForm
+            }
+          >
+            {showForm ? (
+              <>
+                <FaTimes />
+                Close
+              </>
+            ) : (
+              <>
+                <FaPlus />
+                Add Expense
+              </>
+            )}
+          </button>
+        )}
 
       </div>
 
@@ -679,7 +739,7 @@ const Expense = () => {
           Add Expense Form
       ================================================== */}
 
-      {showForm && (
+      {showForm && canCreate && (
         <div className="expense-form-card">
 
           <div className="expense-form-title">
@@ -768,6 +828,7 @@ const Expense = () => {
                   handleInputChange
                 }
               >
+
                 <option value="">
                   Category নির্বাচন করুন
                 </option>
@@ -842,10 +903,10 @@ const Expense = () => {
               <button
                 type="button"
                 className="expense-cancel-btn"
-                onClick={() => {
-                  resetForm();
-                  setShowForm(false);
-                }}
+                onClick={
+                  closeExpenseForm
+                }
+                disabled={saving}
               >
                 Cancel
               </button>
@@ -853,7 +914,10 @@ const Expense = () => {
               <button
                 type="submit"
                 className="expense-save-btn"
-                disabled={saving}
+                disabled={
+                  saving ||
+                  !canCreate
+                }
               >
                 {saving
                   ? "Saving..."
@@ -1061,8 +1125,7 @@ const Expense = () => {
 
       <div className="expense-table-wrapper">
 
-        {filteredExpenses.length ===
-        0 ? (
+        {filteredExpenses.length === 0 ? (
 
           <div className="expense-empty">
 
@@ -1111,9 +1174,11 @@ const Expense = () => {
                   Notes
                 </th>
 
-                <th>
-                  Action
-                </th>
+                {canDelete && (
+                  <th>
+                    Action
+                  </th>
+                )}
 
               </tr>
 
@@ -1129,6 +1194,8 @@ const Expense = () => {
                       expense._id
                     }
                   >
+
+                    {/* Date */}
 
                     <td>
 
@@ -1146,6 +1213,8 @@ const Expense = () => {
 
                     </td>
 
+                    {/* Time */}
+
                     <td>
 
                       <span className="time-cell">
@@ -1156,6 +1225,8 @@ const Expense = () => {
 
                     </td>
 
+                    {/* Title */}
+
                     <td>
 
                       <strong>
@@ -1165,6 +1236,8 @@ const Expense = () => {
 
                     </td>
 
+                    {/* Category */}
+
                     <td>
 
                       <span className="expense-category-badge">
@@ -1173,6 +1246,8 @@ const Expense = () => {
                       </span>
 
                     </td>
+
+                    {/* Amount */}
 
                     <td>
 
@@ -1185,6 +1260,8 @@ const Expense = () => {
 
                     </td>
 
+                    {/* Notes */}
+
                     <td>
 
                       <span className="expense-notes">
@@ -1194,22 +1271,26 @@ const Expense = () => {
 
                     </td>
 
-                    <td>
+                    {/* Action */}
 
-                      <button
-                        type="button"
-                        className="expense-delete-btn"
-                        title="Delete Expense"
-                        onClick={() =>
-                          handleDelete(
-                            expense._id
-                          )
-                        }
-                      >
-                        <FaTrash />
-                      </button>
+                    {canDelete && (
+                      <td>
 
-                    </td>
+                        <button
+                          type="button"
+                          className="expense-delete-btn"
+                          title="Delete Expense"
+                          onClick={() =>
+                            handleDelete(
+                              expense._id
+                            )
+                          }
+                        >
+                          <FaTrash />
+                        </button>
+
+                      </td>
+                    )}
 
                   </tr>
 
@@ -1803,6 +1884,7 @@ const Expense = () => {
         }
 
       `}</style>
+
     </div>
   );
 };

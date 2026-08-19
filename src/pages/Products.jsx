@@ -11,6 +11,8 @@ import {
 import { toast } from "react-toastify";
 
 import { categoryAPI, productAPI } from "../services/api";
+import usePermission from "../hooks/usePermission";
+import { PERMISSIONS } from "../constants/permissions";
 
 const INITIAL_FORM = {
   name: "",
@@ -32,6 +34,27 @@ const INITIAL_FORM = {
 };
 
 const Products = () => {
+  // ==================================================
+  // Permission
+  // ==================================================
+
+  const {
+    can,
+  } = usePermission();
+
+  const canCreate =
+    can(PERMISSIONS.PRODUCTS_CREATE);
+
+  const canUpdate =
+    can(PERMISSIONS.PRODUCTS_UPDATE);
+
+  const canDelete =
+    can(PERMISSIONS.PRODUCTS_DELETE);
+
+  // ==================================================
+  // State
+  // ==================================================
+
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
@@ -45,9 +68,9 @@ const Products = () => {
 
   const [form, setForm] = useState(INITIAL_FORM);
 
-  // ==========================================
+  // ==================================================
   // Load Products + Categories
-  // ==========================================
+  // ==================================================
 
   useEffect(() => {
     let active = true;
@@ -56,23 +79,35 @@ const Products = () => {
       try {
         setLoading(true);
 
-        const [productResponse, categoryResponse] =
-          await Promise.all([
-            productAPI.getAll(),
-            categoryAPI.getAll(),
-          ]);
+        const [
+          productResponse,
+          categoryResponse,
+        ] = await Promise.all([
+          productAPI.getAll(),
+          categoryAPI.getAll(),
+        ]);
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
-        setProducts(productResponse?.data || []);
-        setCategories(categoryResponse?.data || []);
+        setProducts(
+          productResponse?.data || []
+        );
+
+        setCategories(
+          categoryResponse?.data || []
+        );
       } catch (error) {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         console.error(error);
 
         toast.error(
-          error.message || "Data লোড করা যায়নি"
+          error.message ||
+            "Data লোড করা যায়নি"
         );
       } finally {
         if (active) {
@@ -88,30 +123,37 @@ const Products = () => {
     };
   }, []);
 
-  // ==========================================
+  // ==================================================
   // Reload Products
-  // ==========================================
+  // ==================================================
 
   const loadProducts = async () => {
     try {
-      const response = await productAPI.getAll();
+      const response =
+        await productAPI.getAll();
 
-      setProducts(response?.data || []);
+      setProducts(
+        response?.data || []
+      );
     } catch (error) {
       console.error(error);
 
       toast.error(
-        error.message || "Product লোড করা যায়নি"
+        error.message ||
+          "Product লোড করা যায়নি"
       );
     }
   };
 
-  // ==========================================
+  // ==================================================
   // Form Change
-  // ==========================================
+  // ==================================================
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
     setForm((previous) => ({
       ...previous,
@@ -119,32 +161,40 @@ const Products = () => {
     }));
   };
 
-  // ==========================================
+  // ==================================================
   // Category Change
-  // ==========================================
+  // ==================================================
 
-  const handleCategoryChange = (event) => {
-    const categoryId = event.target.value;
+  const handleCategoryChange = (
+    event
+  ) => {
+    const categoryId =
+      event.target.value;
 
-    const selectedCategory = categories.find(
-      (category) =>
-        String(category._id) === String(categoryId)
-    );
+    const selectedCategory =
+      categories.find(
+        (category) =>
+          String(category._id) ===
+          String(categoryId)
+      );
 
-    const selectedUnit = selectedCategory?.unit || "";
+    const selectedUnit =
+      selectedCategory?.unit || "";
 
     const isPoultry =
-      selectedUnit === "কেজি + পিস";
+      selectedUnit ===
+      "কেজি + পিস";
 
     setForm((previous) => ({
       ...previous,
 
       categoryId,
-      categoryName: selectedCategory?.name || "",
+
+      categoryName:
+        selectedCategory?.name || "",
+
       unit: selectedUnit,
 
-      // Category পরিবর্তন করলে
-      // আগের incompatible stock data remove
       stockQuantity: isPoultry
         ? ""
         : previous.stockQuantity,
@@ -167,98 +217,183 @@ const Products = () => {
     }));
   };
 
-  // ==========================================
+  // ==================================================
   // Is Poultry Product?
-  // ==========================================
+  // ==================================================
 
   const isPoultryProduct =
-    form.unit === "কেজি + পিস";
+    form.unit ===
+    "কেজি + পিস";
 
-  // ==========================================
+  // ==================================================
   // Open Add Modal
-  // ==========================================
+  // ==================================================
 
   const openAddModal = () => {
+    if (!canCreate) {
+      toast.error(
+        "Product তৈরি করার permission আপনার নেই"
+      );
+
+      return;
+    }
+
     setEditingId(null);
-    setForm({ ...INITIAL_FORM });
-    setShowModal(true);
-  };
-
-  // ==========================================
-  // Open Edit Modal
-  // ==========================================
-
-  const openEditModal = (product) => {
-    const isPoultry =
-      product.unit === "কেজি + পিস";
-
-    setEditingId(product._id);
 
     setForm({
-      name: product.name || "",
-
-      categoryId: product.categoryId || "",
-
-      categoryName: product.categoryName || "",
-
-      unit: product.unit || "",
-
-      brand: product.brand || "",
-
-      stockQuantity: isPoultry
-        ? ""
-        : product.stockQuantity ?? "",
-
-      minimumQuantity: isPoultry
-        ? ""
-        : product.minimumQuantity ?? "",
-
-      stockPieces: isPoultry
-        ? product.stockPieces ?? ""
-        : "",
-
-      minimumPieces: isPoultry
-        ? product.minimumPieces ?? ""
-        : "",
-
-      totalWeight: isPoultry
-        ? product.totalWeight ?? ""
-        : "",
-
-      status: product.status || "সক্রিয়",
-
-      description: product.description || "",
+      ...INITIAL_FORM,
     });
 
     setShowModal(true);
   };
 
-  // ==========================================
-  // Close Modal
-  // ==========================================
+  // ==================================================
+  // Open Edit Modal
+  // ==================================================
 
-  const closeModal = () => {
-    if (saving) return;
+  const openEditModal = (
+    product
+  ) => {
+    if (!canUpdate) {
+      toast.error(
+        "Product পরিবর্তন করার permission আপনার নেই"
+      );
 
-    setShowModal(false);
-    setEditingId(null);
-    setForm({ ...INITIAL_FORM });
+      return;
+    }
+
+    const isPoultry =
+      product.unit ===
+      "কেজি + পিস";
+
+    setEditingId(
+      product._id
+    );
+
+    setForm({
+      name:
+        product.name || "",
+
+      categoryId:
+        product.categoryId || "",
+
+      categoryName:
+        product.categoryName || "",
+
+      unit:
+        product.unit || "",
+
+      brand:
+        product.brand || "",
+
+      stockQuantity:
+        isPoultry
+          ? ""
+          : product.stockQuantity ??
+            "",
+
+      minimumQuantity:
+        isPoultry
+          ? ""
+          : product.minimumQuantity ??
+            "",
+
+      stockPieces:
+        isPoultry
+          ? product.stockPieces ??
+            ""
+          : "",
+
+      minimumPieces:
+        isPoultry
+          ? product.minimumPieces ??
+            ""
+          : "",
+
+      totalWeight:
+        isPoultry
+          ? product.totalWeight ??
+            ""
+          : "",
+
+      status:
+        product.status ||
+        "সক্রিয়",
+
+      description:
+        product.description ||
+        "",
+    });
+
+    setShowModal(true);
   };
 
-  // ==========================================
-  // Submit
-  // ==========================================
+  // ==================================================
+  // Close Modal
+  // ==================================================
 
-  const handleSubmit = async (event) => {
+  const closeModal = () => {
+    if (saving) {
+      return;
+    }
+
+    setShowModal(false);
+
+    setEditingId(null);
+
+    setForm({
+      ...INITIAL_FORM,
+    });
+  };
+
+  // ==================================================
+  // Submit
+  // ==================================================
+
+  const handleSubmit = async (
+    event
+  ) => {
     event.preventDefault();
 
+    // -----------------------------------------------
+    // Permission Check
+    // -----------------------------------------------
+
+    if (editingId) {
+      if (!canUpdate) {
+        toast.error(
+          "Product পরিবর্তন করার permission আপনার নেই"
+        );
+
+        return;
+      }
+    } else {
+      if (!canCreate) {
+        toast.error(
+          "Product তৈরি করার permission আপনার নেই"
+        );
+
+        return;
+      }
+    }
+
+    // -----------------------------------------------
+    // Basic Validation
+    // -----------------------------------------------
+
     if (!form.name.trim()) {
-      toast.error("Product-এর নাম দিন");
+      toast.error(
+        "Product-এর নাম দিন"
+      );
+
       return;
     }
 
     if (!form.categoryId) {
-      toast.error("Category নির্বাচন করুন");
+      toast.error(
+        "Category নির্বাচন করুন"
+      );
+
       return;
     }
 
@@ -266,38 +401,47 @@ const Products = () => {
       toast.error(
         "Category-এর Unit নির্ধারণ করা নেই"
       );
+
       return;
     }
 
     const isPoultry =
-      form.unit === "কেজি + পিস";
+      form.unit ===
+      "কেজি + পিস";
 
     let payload;
 
-    // ========================================
+    // ==================================================
     // Poultry Payload
-    // ========================================
+    // ==================================================
 
     if (isPoultry) {
       const pieces =
         form.stockPieces === ""
           ? 0
-          : Number(form.stockPieces);
+          : Number(
+              form.stockPieces
+            );
 
       const minimumPieces =
         form.minimumPieces === ""
           ? 0
-          : Number(form.minimumPieces);
+          : Number(
+              form.minimumPieces
+            );
 
       const totalWeight =
         form.totalWeight === ""
           ? 0
-          : Number(form.totalWeight);
+          : Number(
+              form.totalWeight
+            );
 
       if (pieces < 0) {
         toast.error(
           "Pieces negative হতে পারবে না"
         );
+
         return;
       }
 
@@ -305,6 +449,7 @@ const Products = () => {
         toast.error(
           "Minimum Pieces negative হতে পারবে না"
         );
+
         return;
       }
 
@@ -312,54 +457,73 @@ const Products = () => {
         toast.error(
           "Weight negative হতে পারবে না"
         );
+
         return;
       }
 
       payload = {
-        name: form.name.trim(),
+        name:
+          form.name.trim(),
 
-        categoryId: form.categoryId,
+        categoryId:
+          form.categoryId,
 
-        categoryName: form.categoryName,
+        categoryName:
+          form.categoryName,
 
-        unit: form.unit,
+        unit:
+          form.unit,
 
-        brand: form.brand.trim(),
+        brand:
+          form.brand.trim(),
 
-        // Poultry হলে quantity null
-        stockQuantity: null,
+        stockQuantity:
+          null,
 
-        minimumQuantity: null,
+        minimumQuantity:
+          null,
 
-        stockPieces: pieces,
+        stockPieces:
+          pieces,
 
-        minimumPieces,
+        minimumPieces:
+          minimumPieces,
 
-        totalWeight,
+        totalWeight:
+          totalWeight,
 
-        status: form.status,
+        status:
+          form.status,
 
-        description: form.description.trim(),
+        description:
+          form.description.trim(),
       };
-    } else {
-      // ======================================
-      // Normal Product Payload
-      // ======================================
+    }
 
+    // ==================================================
+    // Normal Product Payload
+    // ==================================================
+
+    else {
       const stockQuantity =
         form.stockQuantity === ""
           ? 0
-          : Number(form.stockQuantity);
+          : Number(
+              form.stockQuantity
+            );
 
       const minimumQuantity =
         form.minimumQuantity === ""
           ? 0
-          : Number(form.minimumQuantity);
+          : Number(
+              form.minimumQuantity
+            );
 
       if (stockQuantity < 0) {
         toast.error(
           "Stock negative হতে পারবে না"
         );
+
         return;
       }
 
@@ -367,36 +531,52 @@ const Products = () => {
         toast.error(
           "Minimum Stock negative হতে পারবে না"
         );
+
         return;
       }
 
       payload = {
-        name: form.name.trim(),
+        name:
+          form.name.trim(),
 
-        categoryId: form.categoryId,
+        categoryId:
+          form.categoryId,
 
-        categoryName: form.categoryName,
+        categoryName:
+          form.categoryName,
 
-        unit: form.unit,
+        unit:
+          form.unit,
 
-        brand: form.brand.trim(),
+        brand:
+          form.brand.trim(),
 
-        stockQuantity,
+        stockQuantity:
+          stockQuantity,
 
-        minimumQuantity,
+        minimumQuantity:
+          minimumQuantity,
 
-        // Normal Product হলে এগুলো null
-        stockPieces: null,
+        stockPieces:
+          null,
 
-        minimumPieces: null,
+        minimumPieces:
+          null,
 
-        totalWeight: null,
+        totalWeight:
+          null,
 
-        status: form.status,
+        status:
+          form.status,
 
-        description: form.description.trim(),
+        description:
+          form.description.trim(),
       };
     }
+
+    // ==================================================
+    // Save
+    // ==================================================
 
     try {
       setSaving(true);
@@ -411,7 +591,9 @@ const Products = () => {
           "Product সফলভাবে পরিবর্তন হয়েছে"
         );
       } else {
-        await productAPI.create(payload);
+        await productAPI.create(
+          payload
+        );
 
         toast.success(
           "Product সফলভাবে যোগ হয়েছে"
@@ -419,8 +601,12 @@ const Products = () => {
       }
 
       setShowModal(false);
+
       setEditingId(null);
-      setForm({ ...INITIAL_FORM });
+
+      setForm({
+        ...INITIAL_FORM,
+      });
 
       await loadProducts();
     } catch (error) {
@@ -435,19 +621,34 @@ const Products = () => {
     }
   };
 
-  // ==========================================
+  // ==================================================
   // Delete
-  // ==========================================
+  // ==================================================
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      "আপনি কি এই Product মুছে ফেলতে চান?"
-    );
+  const handleDelete = async (
+    id
+  ) => {
+    if (!canDelete) {
+      toast.error(
+        "Product মুছে ফেলার permission আপনার নেই"
+      );
 
-    if (!confirmed) return;
+      return;
+    }
+
+    const confirmed =
+      window.confirm(
+        "আপনি কি এই Product মুছে ফেলতে চান?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
 
     try {
-      await productAPI.delete(id);
+      await productAPI.delete(
+        id
+      );
 
       toast.success(
         "Product সফলভাবে মুছে ফেলা হয়েছে"
@@ -464,83 +665,114 @@ const Products = () => {
     }
   };
 
-  // ==========================================
+  // ==================================================
   // Search
-  // ==========================================
+  // ==================================================
 
-  const filteredProducts = useMemo(() => {
-    const searchText = search
-      .trim()
-      .toLowerCase();
+  const filteredProducts =
+    useMemo(() => {
+      const searchText =
+        search
+          .trim()
+          .toLowerCase();
 
-    if (!searchText) {
-      return products;
-    }
-
-    return products.filter((product) => {
-      return (
-        product.name
-          ?.toLowerCase()
-          .includes(searchText) ||
-
-        product.categoryName
-          ?.toLowerCase()
-          .includes(searchText) ||
-
-        product.brand
-          ?.toLowerCase()
-          .includes(searchText)
-      );
-    });
-  }, [products, search]);
-
-  // ==========================================
-  // Statistics
-  // ==========================================
-
-  const statistics = useMemo(() => {
-    let totalPieces = 0;
-    let totalWeight = 0;
-    let lowStock = 0;
-
-    products.forEach((product) => {
-      const isPoultry =
-        product.unit === "কেজি + পিস";
-
-      if (isPoultry) {
-        totalPieces +=
-          Number(product.stockPieces) || 0;
-
-        totalWeight +=
-          Number(product.totalWeight) || 0;
-
-        if (
-          Number(product.stockPieces || 0) <=
-          Number(product.minimumPieces || 0)
-        ) {
-          lowStock += 1;
-        }
-      } else {
-        if (
-          Number(product.stockQuantity || 0) <=
-          Number(product.minimumQuantity || 0)
-        ) {
-          lowStock += 1;
-        }
+      if (!searchText) {
+        return products;
       }
-    });
 
-    return {
-      totalProducts: products.length,
-      totalPieces,
-      totalWeight,
-      lowStock,
-    };
-  }, [products]);
+      return products.filter(
+        (product) => {
+          return (
+            product.name
+              ?.toLowerCase()
+              .includes(searchText) ||
 
-  // ==========================================
+            product.categoryName
+              ?.toLowerCase()
+              .includes(searchText) ||
+
+            product.brand
+              ?.toLowerCase()
+              .includes(searchText)
+          );
+        }
+      );
+    }, [
+      products,
+      search,
+    ]);
+
+  // ==================================================
+  // Statistics
+  // ==================================================
+
+  const statistics =
+    useMemo(() => {
+      let totalPieces = 0;
+      let totalWeight = 0;
+      let lowStock = 0;
+
+      products.forEach(
+        (product) => {
+          const isPoultry =
+            product.unit ===
+            "কেজি + পিস";
+
+          if (isPoultry) {
+            totalPieces +=
+              Number(
+                product.stockPieces
+              ) || 0;
+
+            totalWeight +=
+              Number(
+                product.totalWeight
+              ) || 0;
+
+            if (
+              Number(
+                product.stockPieces ||
+                  0
+              ) <=
+              Number(
+                product.minimumPieces ||
+                  0
+              )
+            ) {
+              lowStock += 1;
+            }
+          } else {
+            if (
+              Number(
+                product.stockQuantity ||
+                  0
+              ) <=
+              Number(
+                product.minimumQuantity ||
+                  0
+              )
+            ) {
+              lowStock += 1;
+            }
+          }
+        }
+      );
+
+      return {
+        totalProducts:
+          products.length,
+
+        totalPieces,
+
+        totalWeight,
+
+        lowStock,
+      };
+    }, [products]);
+
+  // ==================================================
   // Loading
-  // ==========================================
+  // ==================================================
 
   if (loading) {
     return (
@@ -550,16 +782,16 @@ const Products = () => {
     );
   }
 
-  // ==========================================
+  // ==================================================
   // UI
-  // ==========================================
+  // ==================================================
 
   return (
     <div className="space-y-6">
 
-      {/* ======================================
+      {/* ==================================================
           Header
-      ======================================= */}
+          ================================================== */}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
@@ -573,19 +805,23 @@ const Products = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="btn btn-primary"
-        >
-          <FaPlus />
-          Product যোগ করুন
-        </button>
+        {/* Create Permission */}
+
+        {canCreate && (
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="btn btn-primary"
+          >
+            <FaPlus />
+            Product যোগ করুন
+          </button>
+        )}
       </div>
 
-      {/* ======================================
+      {/* ==================================================
           Statistics
-      ======================================= */}
+          ================================================== */}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
@@ -631,7 +867,10 @@ const Products = () => {
             </p>
 
             <h2 className="text-2xl font-bold">
-              {statistics.totalWeight.toFixed(2)} kg
+              {statistics.totalWeight.toFixed(
+                2
+              )}{" "}
+              kg
             </h2>
 
           </div>
@@ -655,11 +894,12 @@ const Products = () => {
 
       </div>
 
-      {/* ======================================
+      {/* ==================================================
           Search
-      ======================================= */}
+          ================================================== */}
 
       <div className="card border bg-base-100 shadow-sm">
+
         <div className="card-body p-4">
 
           <div className="relative w-full max-w-md">
@@ -670,7 +910,9 @@ const Products = () => {
               type="text"
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                setSearch(
+                  event.target.value
+                )
               }
               placeholder="Product / Category / Brand খুঁজুন..."
               className="input input-bordered w-full pl-11"
@@ -679,11 +921,12 @@ const Products = () => {
           </div>
 
         </div>
+
       </div>
 
-      {/* ======================================
+      {/* ==================================================
           Product Table
-      ======================================= */}
+          ================================================== */}
 
       <div className="card border bg-base-100 shadow-sm">
 
@@ -704,16 +947,28 @@ const Products = () => {
                   <th>Weight</th>
                   <th>Minimum</th>
                   <th>Status</th>
-                  <th>Action</th>
+
+                  {/* Action column only if needed */}
+
+                  {(canUpdate ||
+                    canDelete) && (
+                    <th>Action</th>
+                  )}
                 </tr>
               </thead>
 
               <tbody>
 
-                {filteredProducts.length === 0 ? (
+                {filteredProducts.length ===
+                0 ? (
                   <tr>
                     <td
-                      colSpan="10"
+                      colSpan={
+                        canUpdate ||
+                        canDelete
+                          ? "10"
+                          : "9"
+                      }
                       className="py-16 text-center"
                     >
                       <FaBoxOpen className="mx-auto mb-3 text-4xl text-base-content/20" />
@@ -731,7 +986,11 @@ const Products = () => {
                   </tr>
                 ) : (
                   filteredProducts.map(
-                    (product, index) => {
+                    (
+                      product,
+                      index
+                    ) => {
+
                       const isPoultry =
                         product.unit ===
                         "কেজি + পিস";
@@ -764,7 +1023,11 @@ const Products = () => {
                             minimumQuantity;
 
                       return (
-                        <tr key={product._id}>
+                        <tr
+                          key={
+                            product._id
+                          }
+                        >
 
                           {/* Number */}
 
@@ -783,7 +1046,9 @@ const Products = () => {
 
                               {product.description && (
                                 <div className="max-w-[200px] truncate text-xs text-base-content/50">
-                                  {product.description}
+                                  {
+                                    product.description
+                                  }
                                 </div>
                               )}
 
@@ -801,7 +1066,8 @@ const Products = () => {
                               </div>
 
                               <span className="badge badge-ghost badge-sm mt-1">
-                                {product.unit || "-"}
+                                {product.unit ||
+                                  "-"}
                               </span>
 
                             </div>
@@ -810,7 +1076,8 @@ const Products = () => {
                           {/* Brand */}
 
                           <td>
-                            {product.brand || "-"}
+                            {product.brand ||
+                              "-"}
                           </td>
 
                           {/* Stock */}
@@ -822,12 +1089,19 @@ const Products = () => {
                               </span>
                             ) : (
                               <div className="whitespace-nowrap">
+
                                 <span className="font-semibold">
-                                  {currentQuantity}
+                                  {
+                                    currentQuantity
+                                  }
                                 </span>{" "}
+
                                 <span className="text-sm text-base-content/60">
-                                  {product.unit}
+                                  {
+                                    product.unit
+                                  }
                                 </span>
+
                               </div>
                             )}
                           </td>
@@ -837,12 +1111,17 @@ const Products = () => {
                           <td>
                             {isPoultry ? (
                               <div className="whitespace-nowrap">
+
                                 <span className="font-semibold">
-                                  {currentPieces}
+                                  {
+                                    currentPieces
+                                  }
                                 </span>{" "}
+
                                 <span className="text-sm text-base-content/60">
                                   টি
                                 </span>
+
                               </div>
                             ) : (
                               "-"
@@ -854,17 +1133,21 @@ const Products = () => {
                           <td>
                             {isPoultry ? (
                               <div className="flex items-center gap-1 whitespace-nowrap">
+
                                 <FaWeightHanging className="text-base-content/40" />
 
                                 <span className="font-semibold">
                                   {Number(
                                     product.totalWeight
-                                  ).toFixed(2)}
+                                  ).toFixed(
+                                    2
+                                  )}
                                 </span>
 
                                 <span className="text-sm text-base-content/60">
                                   kg
                                 </span>
+
                               </div>
                             ) : (
                               "-"
@@ -876,21 +1159,33 @@ const Products = () => {
                           <td>
                             {isPoultry ? (
                               <div className="whitespace-nowrap">
+
                                 <span className="font-semibold">
-                                  {minimumPieces}
+                                  {
+                                    minimumPieces
+                                  }
                                 </span>{" "}
+
                                 <span className="text-sm text-base-content/60">
                                   টি
                                 </span>
+
                               </div>
                             ) : (
                               <div className="whitespace-nowrap">
+
                                 <span className="font-semibold">
-                                  {minimumQuantity}
+                                  {
+                                    minimumQuantity
+                                  }
                                 </span>{" "}
+
                                 <span className="text-sm text-base-content/60">
-                                  {product.unit}
+                                  {
+                                    product.unit
+                                  }
                                 </span>
+
                               </div>
                             )}
                           </td>
@@ -900,8 +1195,11 @@ const Products = () => {
                           <td>
                             {isLowStock ? (
                               <span className="badge badge-warning gap-1 whitespace-nowrap">
+
                                 <FaExclamationTriangle />
+
                                 Low Stock
+
                               </span>
                             ) : (
                               <span className="badge badge-success whitespace-nowrap">
@@ -912,35 +1210,50 @@ const Products = () => {
 
                           {/* Actions */}
 
-                          <td>
-                            <div className="flex gap-1">
+                          {(canUpdate ||
+                            canDelete) && (
+                            <td>
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  openEditModal(product)
-                                }
-                                className="btn btn-sm btn-square btn-ghost text-info"
-                                title="Edit"
-                              >
-                                <FaEdit />
-                              </button>
+                              <div className="flex gap-1">
 
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDelete(
-                                    product._id
-                                  )
-                                }
-                                className="btn btn-sm btn-square btn-ghost text-error"
-                                title="Delete"
-                              >
-                                <FaTrash />
-                              </button>
+                                {/* Update */}
 
-                            </div>
-                          </td>
+                                {canUpdate && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openEditModal(
+                                        product
+                                      )
+                                    }
+                                    className="btn btn-sm btn-square btn-ghost text-info"
+                                    title="Edit"
+                                  >
+                                    <FaEdit />
+                                  </button>
+                                )}
+
+                                {/* Delete */}
+
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDelete(
+                                        product._id
+                                      )
+                                    }
+                                    className="btn btn-sm btn-square btn-ghost text-error"
+                                    title="Delete"
+                                  >
+                                    <FaTrash />
+                                  </button>
+                                )}
+
+                              </div>
+
+                            </td>
+                          )}
 
                         </tr>
                       );
@@ -953,12 +1266,14 @@ const Products = () => {
             </table>
 
           </div>
+
         </div>
+
       </div>
 
-      {/* ======================================
+      {/* ==================================================
           Add / Edit Modal
-      ======================================= */}
+          ================================================== */}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -970,6 +1285,7 @@ const Products = () => {
             <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-base-100 p-5">
 
               <div>
+
                 <h2 className="text-xl font-bold">
                   {editingId
                     ? "Product Edit"
@@ -979,6 +1295,7 @@ const Products = () => {
                 <p className="mt-1 text-xs text-base-content/50">
                   Product-এর stock information দিন
                 </p>
+
               </div>
 
               <button
@@ -995,7 +1312,9 @@ const Products = () => {
             {/* Form */}
 
             <form
-              onSubmit={handleSubmit}
+              onSubmit={
+                handleSubmit
+              }
               className="space-y-5 p-5"
             >
 
@@ -1012,8 +1331,12 @@ const Products = () => {
                 <input
                   type="text"
                   name="name"
-                  value={form.name}
-                  onChange={handleChange}
+                  value={
+                    form.name
+                  }
+                  onChange={
+                    handleChange
+                  }
                   placeholder="যেমন: Murgi"
                   className="input input-bordered w-full"
                   required
@@ -1034,7 +1357,9 @@ const Products = () => {
                   </label>
 
                   <select
-                    value={form.categoryId}
+                    value={
+                      form.categoryId
+                    }
                     onChange={
                       handleCategoryChange
                     }
@@ -1047,12 +1372,21 @@ const Products = () => {
                     </option>
 
                     {categories.map(
-                      (category) => (
+                      (
+                        category
+                      ) => (
                         <option
-                          key={category._id}
-                          value={category._id}
+                          key={
+                            category._id
+                          }
+                          value={
+                            category._id
+                          }
                         >
-                          {category.name}
+                          {
+                            category.name
+                          }
+
                           {category.unit
                             ? ` — ${category.unit}`
                             : ""}
@@ -1075,8 +1409,12 @@ const Products = () => {
                   <input
                     type="text"
                     name="brand"
-                    value={form.brand}
-                    onChange={handleChange}
+                    value={
+                      form.brand
+                    }
+                    onChange={
+                      handleChange
+                    }
                     placeholder="যেমন: BD Foods"
                     className="input input-bordered w-full"
                   />
@@ -1093,23 +1431,31 @@ const Products = () => {
                   <div className="flex flex-wrap items-center justify-between gap-3">
 
                     <div>
+
                       <p className="text-xs text-base-content/50">
                         Selected Category
                       </p>
 
                       <p className="font-semibold">
-                        {form.categoryName}
+                        {
+                          form.categoryName
+                        }
                       </p>
+
                     </div>
 
                     <div>
+
                       <p className="text-xs text-base-content/50">
                         Unit
                       </p>
 
                       <span className="badge badge-info">
-                        {form.unit}
+                        {
+                          form.unit
+                        }
                       </span>
+
                     </div>
 
                   </div>
@@ -1117,100 +1463,110 @@ const Products = () => {
                 </div>
               )}
 
-              {/* =================================
-                  NORMAL PRODUCT STOCK
-              ================================== */}
+              {/* ==================================================
+                  Normal Product Stock
+                  ================================================== */}
 
-              {!isPoultryProduct && form.unit && (
-                <div className="rounded-xl border bg-base-200/40 p-4">
+              {!isPoultryProduct &&
+                form.unit && (
+                  <div className="rounded-xl border bg-base-200/40 p-4">
 
-                  <div className="mb-4">
+                    <div className="mb-4">
 
-                    <h3 className="font-semibold">
-                      Stock Information
-                    </h3>
+                      <h3 className="font-semibold">
+                        Stock Information
+                      </h3>
 
-                    <p className="mt-1 text-xs text-base-content/50">
-                      Category-এর Unit অনুযায়ী Stock দিন।
-                    </p>
+                      <p className="mt-1 text-xs text-base-content/50">
+                        Category-এর Unit অনুযায়ী Stock দিন।
+                      </p>
 
-                  </div>
+                    </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-                    {/* Current */}
+                      {/* Current */}
 
-                    <div className="form-control">
+                      <div className="form-control">
 
-                      <label className="label">
-                        <span className="label-text">
-                          Current Stock
-                        </span>
-                      </label>
+                        <label className="label">
+                          <span className="label-text">
+                            Current Stock
+                          </span>
+                        </label>
 
-                      <div className="join w-full">
+                        <div className="join w-full">
 
-                        <input
-                          type="number"
-                          name="stockQuantity"
-                          value={
-                            form.stockQuantity
-                          }
-                          onChange={handleChange}
-                          min="0"
-                          step="0.01"
-                          placeholder="5"
-                          className="input input-bordered join-item w-full"
-                        />
+                          <input
+                            type="number"
+                            name="stockQuantity"
+                            value={
+                              form.stockQuantity
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            min="0"
+                            step="0.01"
+                            placeholder="5"
+                            className="input input-bordered join-item w-full"
+                          />
 
-                        <span className="btn join-item no-animation">
-                          {form.unit}
-                        </span>
+                          <span className="btn join-item no-animation">
+                            {
+                              form.unit
+                            }
+                          </span>
+
+                        </div>
+
+                      </div>
+
+                      {/* Minimum */}
+
+                      <div className="form-control">
+
+                        <label className="label">
+                          <span className="label-text">
+                            Minimum Stock
+                          </span>
+                        </label>
+
+                        <div className="join w-full">
+
+                          <input
+                            type="number"
+                            name="minimumQuantity"
+                            value={
+                              form.minimumQuantity
+                            }
+                            onChange={
+                              handleChange
+                            }
+                            min="0"
+                            step="0.01"
+                            placeholder="2"
+                            className="input input-bordered join-item w-full"
+                          />
+
+                          <span className="btn join-item no-animation">
+                            {
+                              form.unit
+                            }
+                          </span>
+
+                        </div>
 
                       </div>
 
                     </div>
 
-                    {/* Minimum */}
-
-                    <div className="form-control">
-
-                      <label className="label">
-                        <span className="label-text">
-                          Minimum Stock
-                        </span>
-                      </label>
-
-                      <div className="join w-full">
-
-                        <input
-                          type="number"
-                          name="minimumQuantity"
-                          value={
-                            form.minimumQuantity
-                          }
-                          onChange={handleChange}
-                          min="0"
-                          step="0.01"
-                          placeholder="2"
-                          className="input input-bordered join-item w-full"
-                        />
-
-                        <span className="btn join-item no-animation">
-                          {form.unit}
-                        </span>
-
-                      </div>
-
-                    </div>
-
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* =================================
-                  POULTRY STOCK
-              ================================== */}
+              {/* ==================================================
+                  Poultry Stock
+                  ================================================== */}
 
               {isPoultryProduct && (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -1222,8 +1578,7 @@ const Products = () => {
                     </h3>
 
                     <p className="mt-1 text-xs text-base-content/50">
-                      মুরগির Stock Pieces এবং Weight
-                      অনুযায়ী সংরক্ষণ হবে।
+                      মুরগির Stock Pieces এবং Weight অনুযায়ী সংরক্ষণ হবে।
                     </p>
 
                   </div>
@@ -1248,7 +1603,9 @@ const Products = () => {
                           value={
                             form.stockPieces
                           }
-                          onChange={handleChange}
+                          onChange={
+                            handleChange
+                          }
                           min="0"
                           step="1"
                           placeholder="41"
@@ -1281,7 +1638,9 @@ const Products = () => {
                           value={
                             form.minimumPieces
                           }
-                          onChange={handleChange}
+                          onChange={
+                            handleChange
+                          }
                           min="0"
                           step="1"
                           placeholder="10"
@@ -1314,7 +1673,9 @@ const Products = () => {
                           value={
                             form.totalWeight
                           }
-                          onChange={handleChange}
+                          onChange={
+                            handleChange
+                          }
                           min="0"
                           step="0.01"
                           placeholder="61.5"
@@ -1346,8 +1707,12 @@ const Products = () => {
 
                 <select
                   name="status"
-                  value={form.status}
-                  onChange={handleChange}
+                  value={
+                    form.status
+                  }
+                  onChange={
+                    handleChange
+                  }
                   className="select select-bordered w-full"
                 >
 
@@ -1375,8 +1740,12 @@ const Products = () => {
 
                 <textarea
                   name="description"
-                  value={form.description}
-                  onChange={handleChange}
+                  value={
+                    form.description
+                  }
+                  onChange={
+                    handleChange
+                  }
                   placeholder="Product সম্পর্কে তথ্য..."
                   className="textarea textarea-bordered min-h-[100px] w-full"
                 />
@@ -1389,7 +1758,9 @@ const Products = () => {
 
                 <button
                   type="button"
-                  onClick={closeModal}
+                  onClick={
+                    closeModal
+                  }
                   disabled={saving}
                   className="btn btn-ghost"
                 >
@@ -1398,7 +1769,12 @@ const Products = () => {
 
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    (editingId
+                      ? !canUpdate
+                      : !canCreate)
+                  }
                   className="btn btn-primary"
                 >
 
@@ -1420,8 +1796,10 @@ const Products = () => {
             </form>
 
           </div>
+
         </div>
       )}
+
     </div>
   );
 };
