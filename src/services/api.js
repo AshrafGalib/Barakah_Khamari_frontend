@@ -43,7 +43,7 @@ const buildQueryString = (params) => {
   if (!params || typeof params !== "object") return "";
   const cleanedParams = Object.fromEntries(
     Object.entries(params).filter(
-      ([_, value]) => value !== undefined && value !== null && value !== ""
+      ([, value]) => value !== undefined && value !== null && value !== ""
     )
   );
   const query = new URLSearchParams(cleanedParams).toString();
@@ -166,7 +166,7 @@ export const supplierAPI = {
   create: (supplier) => api.post("/suppliers", supplier),
   update: (id, supplier) => api.patch(`/suppliers/${id}`, supplier),
   delete: (id) => api.delete(`/suppliers/${id}`),
-  payDue: (id, payment) => api.patch(`/suppliers/${id}/due-payment`, payment),
+  payDue: (id, payment) => api.post(`/suppliers/${id}/due-payment`, payment),
 };
 
 export const productAPI = {
@@ -223,6 +223,14 @@ export const cashBalanceAPI = {
       openingBalance: Number(openingBalance) || 0,
       ...(date ? { date } : {}),
     }),
+};
+
+// ==========================================
+// Reports API Module
+// ==========================================
+
+export const reportsAPI = {
+  getSummary: (params) => api.get("/reports/summary", params),
 };
 
 export default api;
