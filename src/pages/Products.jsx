@@ -7,7 +7,7 @@ import {
   FaSearch,
   FaTimes,
   FaTrash,
-  FaWeightHanging,
+  FaWeightHanging
 } from "react-icons/fa";
 import { toast } from "react-toastify";
 
@@ -31,17 +31,11 @@ const INITIAL_FORM = {
 };
 
 const Products = () => {
-  // ==================================================
-  // Permissions
-  // ==================================================
   const { can } = usePermission();
   const canCreate = can(PERMISSIONS.PRODUCTS_CREATE);
   const canUpdate = can(PERMISSIONS.PRODUCTS_UPDATE);
   const canDelete = can(PERMISSIONS.PRODUCTS_DELETE);
 
-  // ==================================================
-  // States
-  // ==================================================
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,9 +45,6 @@ const Products = () => {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
 
-  // ==================================================
-  // Load Products + Categories
-  // ==================================================
   useEffect(() => {
     let active = true;
 
@@ -88,9 +79,6 @@ const Products = () => {
     };
   }, []);
 
-  // ==================================================
-  // Form Handlers
-  // ==================================================
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((previous) => ({
@@ -123,9 +111,6 @@ const Products = () => {
 
   const isPoultryProduct = form.unit === "কেজি + পিস";
 
-  // ==================================================
-  // Modal Handlers
-  // ==================================================
   const openAddModal = () => {
     if (!canCreate) {
       toast.error("Product তৈরি করার permission আপনার নেই");
@@ -172,10 +157,6 @@ const Products = () => {
     setForm({ ...INITIAL_FORM });
   };
 
-  // ==================================================
-  // Submit Creation / Update
-  // ==================================================
-
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -206,7 +187,6 @@ const Products = () => {
 
     const isPoultry = form.unit === "কেজি + পিস";
 
-    // Build payload directly based on type
     const payload = isPoultry
       ? {
           name: form.name.trim(),
@@ -237,7 +217,6 @@ const Products = () => {
           description: form.description.trim(),
         };
 
-    // Validation Check on calculated payload values
     if (isPoultry) {
       if (payload.stockPieces < 0 || payload.minimumPieces < 0 || payload.totalWeight < 0) {
         toast.error("Stock বা Weight নেগেটিভ হতে পারবে না");
@@ -278,9 +257,6 @@ const Products = () => {
     }
   };
 
-  // ==================================================
-  // Delete Product
-  // ==================================================
   const handleDelete = async (id) => {
     if (!canDelete) {
       toast.error("Product মুছে ফেলার permission আপনার নেই");
@@ -300,9 +276,6 @@ const Products = () => {
     }
   };
 
-  // ==================================================
-  // Filtered Products
-  // ==================================================
   const filteredProducts = useMemo(() => {
     const searchText = search.trim().toLowerCase();
     if (!searchText) return products;
@@ -316,9 +289,6 @@ const Products = () => {
     });
   }, [products, search]);
 
-  // ==================================================
-  // Statistics
-  // ==================================================
   const statistics = useMemo(() => {
     let totalPieces = 0;
     let totalWeight = 0;
@@ -435,6 +405,7 @@ const Products = () => {
                 <th>Product</th>
                 <th>Category</th>
                 <th>Brand</th>
+                <th>Avg Buying Price</th>
                 <th>Stock</th>
                 <th>Pieces</th>
                 <th>Weight</th>
@@ -446,7 +417,7 @@ const Products = () => {
             <tbody>
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={canUpdate || canDelete ? 10 : 9} className="py-12 text-center">
+                  <td colSpan={canUpdate || canDelete ? 11 : 10} className="py-12 text-center">
                     <FaBoxOpen className="mx-auto mb-2 text-3xl text-base-content/20" />
                     <p className="font-semibold text-base-content/70">কোনো Product পাওয়া যায়নি</p>
                     {search && (
@@ -463,6 +434,16 @@ const Products = () => {
                   const minimumPieces = Number(product.minimumPieces) || 0;
                   const currentQuantity = Number(product.stockQuantity) || 0;
                   const minimumQuantity = Number(product.minimumQuantity) || 0;
+
+                  // Dynamic Price Fallback Check
+                  const avgPrice = Number(
+                    product.buyingPrice ?? 
+                    product.averageBuyingPrice ?? 
+                    product.unitPrice ?? 
+                    0
+                  );
+
+                  console.log("Product Data:", product.name, product);
 
                   const isLowStock = isPoultry
                     ? currentPieces <= minimumPieces
@@ -490,6 +471,17 @@ const Products = () => {
                         </div>
                       </td>
                       <td>{product.brand || "-"}</td>
+
+                      {/* Avg Buying Price Cell */}
+                      <td>
+                        <div className="badge badge-outline border-base-300 font-mono font-semibold whitespace-nowrap">
+                          ৳{avgPrice.toFixed(2)}{" "}
+                          <span className="text-[10px] text-base-content/60 ml-1">
+                            {isPoultry ? "/kg" : `/${product.unit || "unit"}`}
+                          </span>
+                        </div>
+                      </td>
+
                       <td>
                         {isPoultry ? (
                           <span className="text-base-content/40">—</span>
@@ -587,7 +579,6 @@ const Products = () => {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-5">
           <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-base-100 shadow-2xl">
-            {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-base-300 px-5 py-4">
               <div>
                 <h2 className="text-lg font-bold sm:text-xl">
@@ -607,7 +598,6 @@ const Products = () => {
               </button>
             </div>
 
-            {/* Modal Body Form */}
             <form onSubmit={handleSubmit} className="space-y-4 p-5 overflow-y-auto">
               <div>
                 <label className="label">
@@ -673,7 +663,6 @@ const Products = () => {
                 </div>
               )}
 
-              {/* Normal Product Stock Inputs */}
               {!isPoultryProduct && form.unit && (
                 <div className="rounded-xl border border-base-300 bg-base-200/40 p-4 space-y-3">
                   <h3 className="text-sm font-semibold">Stock Information</h3>
@@ -719,7 +708,6 @@ const Products = () => {
                 </div>
               )}
 
-              {/* Poultry Stock Inputs */}
               {isPoultryProduct && (
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
                   <h3 className="text-sm font-semibold">Poultry Stock Information</h3>
@@ -847,7 +835,6 @@ const Products = () => {
   );
 };
 
-// Loading Skeleton
 function LoadingState() {
   return (
     <div className="card border border-base-300 bg-base-100 shadow-sm py-20 text-center">

@@ -209,7 +209,7 @@ const Purchase = () => {
       setSaving(true);
 
       const payload = {
-        purchaseDate: form.purchaseDate,
+        purchaseDate: form.purchaseDate ? new Date(form.purchaseDate).toISOString() : new Date().toISOString(),
         invoiceNo: form.invoiceNo.trim(),
         supplierId: form.supplierId || null,
         supplierName: supplierMap[form.supplierId] || "নিজস্ব",
