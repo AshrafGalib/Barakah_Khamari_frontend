@@ -14,10 +14,6 @@ import {
 import { toast } from "react-toastify";
 import { reportsAPI } from "../services/api";
 
-// ==========================================
-// Constants & Pure Helper Functions
-// ==========================================
-
 const DATE_OPTIONS = [
   { label: "আজকে (Today)", value: "today" },
   { label: "গতকাল (Yesterday)", value: "yesterday" },
@@ -87,18 +83,12 @@ const calculateDateRange = (type, customStart, customEnd) => {
   };
 };
 
-// ==========================================
-// Sub-Components
-// ==========================================
-
-// চিকেন ক্যাটাগরি কার্ড
+// চিকেন কার্ড
 const ChickenCategoryCard = React.memo(({ chickenData }) => {
-  const pcs = chickenData?.pcs || chickenData?.quantity || 0;
-  const kg = chickenData?.kg || chickenData?.weight || 0;
+  const pcs = chickenData?.pcs || 0;
+  const kg = chickenData?.kg || 0;
   const amount = chickenData?.totalAmount || 0;
-  const profitBeforeDiscount = chickenData?.profitBeforeDiscount !== undefined 
-    ? chickenData.profitBeforeDiscount 
-    : (chickenData?.profit || 0);
+  const profitBeforeDiscount = chickenData?.profitBeforeDiscount || 0;
   const discount = chickenData?.discount || 0;
   const profitAfterDiscount = chickenData?.profitAfterDiscount !== undefined 
     ? chickenData.profitAfterDiscount 
@@ -119,7 +109,7 @@ const ChickenCategoryCard = React.memo(({ chickenData }) => {
           <span className="font-semibold">{formatMoney(pcs)} টি ({formatMoney(kg)} কেজি)</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-base-content/60">মোট বিক্রি:</span>
+          <span className="text-base-content/60">মোট বিক্রি (ডিসকাউন্টের আগে):</span>
           <span className="font-bold text-primary">৳ {formatMoney(amount)}</span>
         </div>
         <div className="flex justify-between text-sm text-base-content/60">
@@ -137,7 +127,7 @@ const ChickenCategoryCard = React.memo(({ chickenData }) => {
   );
 });
 
-// ডিম ও মসলাসহ যেকোনো ক্যাটাগরির জন্য জেনারেল কার্ড
+// ডিম ও মসলাসহ জেনারেল কার্ড
 const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, categoryData, unit = "টি" }) => {
   const profitBeforeDiscount = categoryData?.profitBeforeDiscount !== undefined 
     ? categoryData.profitBeforeDiscount 
@@ -162,7 +152,7 @@ const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, catego
           <span className="font-semibold">{formatMoney(qty)} {unit}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-base-content/60">মোট বিক্রি:</span>
+          <span className="text-base-content/60">মোট বিক্রি (ডিসকাউন্টের আগে):</span>
           <span className="font-bold text-primary">৳ {formatMoney(amount)}</span>
         </div>
         <div className="flex justify-between text-sm text-base-content/60">
@@ -194,10 +184,6 @@ const FinancialCard = React.memo(({ title, amount, icon: Icon, colorClass, subti
     </div>
   </div>
 ));
-
-// ==========================================
-// Main Component
-// ==========================================
 
 function Reports() {
   const [filterType, setFilterType] = useState("today");
@@ -254,7 +240,6 @@ function Reports() {
     }
   }, [filterType, startDate, endDate]);
 
-  // Data Extractors
   const sales = useMemo(() => reportData?.sales || {}, [reportData]);
   const purchases = useMemo(() => reportData?.purchases || { totalAmount: 0, items: [] }, [reportData]);
   const duePayments = useMemo(() => reportData?.duePaymentsCollected || 0, [reportData]);
@@ -262,7 +247,6 @@ function Reports() {
   const totalDiscount = useMemo(() => reportData?.totalDiscount || 0, [reportData]);
   const invoicesList = useMemo(() => reportData?.invoices || [], [reportData]);
 
-  // সর্বমোট নিট লাভ (মোট লাভ - সকল ডিসকাউন্ট - সকল খরচ)
   const totalOverallProfit = useMemo(() => {
     if (reportData?.netProfit !== undefined) {
       return reportData.netProfit;
@@ -277,7 +261,6 @@ function Reports() {
 
   return (
     <div className="space-y-6 pb-10">
-      {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-base-content sm:text-3xl">ব্যবসার রিপোর্ট</h1>
@@ -295,7 +278,6 @@ function Reports() {
         </button>
       </div>
 
-      {/* Date Filter Section */}
       <div className="rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2 text-primary font-semibold">
@@ -344,16 +326,12 @@ function Reports() {
         </div>
       ) : (
         <>
-          {/* Category Sales & Profit Section */}
           <div>
             <h2 className="mb-4 text-lg font-bold text-base-content/80 flex items-center gap-2">
               <FaChartLine className="text-primary" /> ক্যাটাগরি অনুযায়ী বিক্রি ও লাভ
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* চিকেন কার্ড */}
               <ChickenCategoryCard chickenData={sales?.chicken} />
-
-              {/* ডিম কার্ড */}
               <CategoryCard
                 title="ডিম বিক্রি (Egg)"
                 icon={FaEgg}
@@ -363,8 +341,6 @@ function Reports() {
                 categoryData={sales?.egg}
                 unit="টি"
               />
-
-              {/* মসলা কার্ড */}
               <CategoryCard
                 title="মসলা বিক্রি (Spice)"
                 icon={FaMortarPestle}
@@ -377,7 +353,6 @@ function Reports() {
             </div>
           </div>
 
-          {/* Financial Overview */}
           <div>
             <h2 className="mb-4 text-lg font-bold text-base-content/80 flex items-center gap-2">
               <FaMoneyBillWave className="text-success" /> আর্থিক লেনদেন ও নিট হিসাব
@@ -407,7 +382,6 @@ function Reports() {
             </div>
           </div>
 
-          {/* Purchase Breakdown */}
           <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-base-200 pb-4 mb-4">
               <div className="flex items-center gap-3">
@@ -453,7 +427,6 @@ function Reports() {
             )}
           </div>
 
-          {/* Invoice-wise Breakdown Table */}
           <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
             <div className="flex items-center gap-3 border-b border-base-200 pb-4 mb-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
