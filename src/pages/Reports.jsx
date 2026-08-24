@@ -91,12 +91,14 @@ const calculateDateRange = (type, customStart, customEnd) => {
 // Sub-Components
 // ==========================================
 
-// আগের ইউআই কালার ও লেআউট বজায় রেখে তৈরি চিকেন কার্ড
+// চিকেন ক্যাটাগরি কার্ড
 const ChickenCategoryCard = React.memo(({ chickenData }) => {
   const pcs = chickenData?.pcs || chickenData?.quantity || 0;
   const kg = chickenData?.kg || chickenData?.weight || 0;
   const amount = chickenData?.totalAmount || 0;
-  const profitBeforeDiscount = chickenData?.profitBeforeDiscount || chickenData?.profit || 0;
+  const profitBeforeDiscount = chickenData?.profitBeforeDiscount !== undefined 
+    ? chickenData.profitBeforeDiscount 
+    : (chickenData?.profit || 0);
   const discount = chickenData?.discount || 0;
   const profitAfterDiscount = chickenData?.profitAfterDiscount !== undefined 
     ? chickenData.profitAfterDiscount 
@@ -135,33 +137,48 @@ const ChickenCategoryCard = React.memo(({ chickenData }) => {
   );
 });
 
-const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, profit, unit = "টি" }) => (
-  <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm transition-all hover:shadow-md">
-    <div className="flex items-center justify-between">
-      <span className="font-bold text-base-content/70">{title}</span>
-      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
-        <Icon className="text-lg" />
-      </div>
-    </div>
+// ডিম ও মসলাসহ যেকোনো ক্যাটাগরির জন্য জেনারেল কার্ড
+const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, categoryData, unit = "টি" }) => {
+  const profitBeforeDiscount = categoryData?.profitBeforeDiscount !== undefined 
+    ? categoryData.profitBeforeDiscount 
+    : (categoryData?.profit || 0);
+  const discount = categoryData?.discount || 0;
+  const profitAfterDiscount = categoryData?.profitAfterDiscount !== undefined 
+    ? categoryData.profitAfterDiscount 
+    : (profitBeforeDiscount - discount);
 
-    <div className="mt-4 space-y-2">
-      <div className="flex justify-between text-sm">
-        <span className="text-base-content/60">বিক্রির পরিমাণ:</span>
-        <span className="font-semibold">{formatMoney(qty)} {unit}</span>
+  return (
+    <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm transition-all hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <span className="font-bold text-base-content/70">{title}</span>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${color}`}>
+          <Icon className="text-lg" />
+        </div>
       </div>
-      <div className="flex justify-between text-sm">
-        <span className="text-base-content/60">মোট বিক্রি:</span>
-        <span className="font-bold text-primary">৳ {formatMoney(amount)}</span>
-      </div>
-      <div className="border-t border-base-200 pt-2 flex justify-between text-sm">
-        <span className="text-base-content/60 font-medium">মোট লাভ (Profit):</span>
-        <span className={`font-bold ${profit >= 0 ? "text-success" : "text-error"}`}>
-          ৳ {formatMoney(profit)}
-        </span>
+
+      <div className="mt-4 space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-base-content/60">বিক্রির পরিমাণ:</span>
+          <span className="font-semibold">{formatMoney(qty)} {unit}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-base-content/60">মোট বিক্রি:</span>
+          <span className="font-bold text-primary">৳ {formatMoney(amount)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-base-content/60">
+          <span>লাভ (ডিসকাউন্টের আগে):</span>
+          <span className="font-semibold text-info">৳ {formatMoney(profitBeforeDiscount)}</span>
+        </div>
+        <div className="border-t border-base-200 pt-2 flex justify-between text-sm">
+          <span className="text-base-content/70 font-semibold">ডিসকাউন্টের পর মোট লাভ:</span>
+          <span className={`font-bold ${profitAfterDiscount >= 0 ? "text-success" : "text-error"}`}>
+            ৳ {formatMoney(profitAfterDiscount)}
+          </span>
+        </div>
       </div>
     </div>
-  </div>
-));
+  );
+});
 
 const FinancialCard = React.memo(({ title, amount, icon: Icon, colorClass, subtitle }) => (
   <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
@@ -251,8 +268,8 @@ function Reports() {
       return reportData.netProfit;
     }
     const chickenProfit = sales?.chicken?.profitBeforeDiscount || sales?.chicken?.profit || 0;
-    const eggProfit = sales?.egg?.profit || 0;
-    const spiceProfit = sales?.spice?.profit || 0;
+    const eggProfit = sales?.egg?.profitBeforeDiscount || sales?.egg?.profit || 0;
+    const spiceProfit = sales?.spice?.profitBeforeDiscount || sales?.spice?.profit || 0;
 
     const totalGrossProfit = chickenProfit + eggProfit + spiceProfit;
     return totalGrossProfit - totalDiscount - totalExpense;
@@ -336,22 +353,25 @@ function Reports() {
               {/* চিকেন কার্ড */}
               <ChickenCategoryCard chickenData={sales?.chicken} />
 
+              {/* ডিম কার্ড */}
               <CategoryCard
                 title="ডিম বিক্রি (Egg)"
                 icon={FaEgg}
                 color="bg-yellow-500/10 text-yellow-600"
                 qty={sales?.egg?.quantity || 0}
                 amount={sales?.egg?.totalAmount || 0}
-                profit={sales?.egg?.profit || 0}
+                categoryData={sales?.egg}
                 unit="টি"
               />
+
+              {/* মসলা কার্ড */}
               <CategoryCard
                 title="মসলা বিক্রি (Spice)"
                 icon={FaMortarPestle}
                 color="bg-rose-500/10 text-rose-600"
                 qty={sales?.spice?.quantity || 0}
                 amount={sales?.spice?.totalAmount || 0}
-                profit={sales?.spice?.profit || 0}
+                categoryData={sales?.spice}
                 unit="কেজি / প্যাক"
               />
             </div>
