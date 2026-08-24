@@ -9,9 +9,10 @@ import {
   FaReceipt,
   FaChartLine,
   FaSync,
+  FaFileInvoiceDollar,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
-import { reportsAPI } from "../services/api"; // আপনার API সার্ভিস অনুযায়ী পাথ অ্যাডজাস্ট করুন
+import { reportsAPI } from "../services/api";
 
 // ==========================================
 // Constants & Pure Helper Functions
@@ -87,8 +88,52 @@ const calculateDateRange = (type, customStart, customEnd) => {
 };
 
 // ==========================================
-// Memoized Sub-Components
+// Sub-Components
 // ==========================================
+
+// আগের ইউআই কালার ও লেআউট বজায় রেখে তৈরি চিকেন কার্ড
+const ChickenCategoryCard = React.memo(({ chickenData }) => {
+  const pcs = chickenData?.pcs || chickenData?.quantity || 0;
+  const kg = chickenData?.kg || chickenData?.weight || 0;
+  const amount = chickenData?.totalAmount || 0;
+  const profitBeforeDiscount = chickenData?.profitBeforeDiscount || chickenData?.profit || 0;
+  const discount = chickenData?.discount || 0;
+  const profitAfterDiscount = chickenData?.profitAfterDiscount !== undefined 
+    ? chickenData.profitAfterDiscount 
+    : (profitBeforeDiscount - discount);
+
+  return (
+    <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm transition-all hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <span className="font-bold text-base-content/70">মুরগি বিক্রি (Chicken)</span>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+          <FaDrumstickBite className="text-lg" />
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-base-content/60">বিক্রির পরিমাণ:</span>
+          <span className="font-semibold">{formatMoney(pcs)} টি ({formatMoney(kg)} কেজি)</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-base-content/60">মোট বিক্রি:</span>
+          <span className="font-bold text-primary">৳ {formatMoney(amount)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-base-content/60">
+          <span>লাভ (ডিসকাউন্টের আগে):</span>
+          <span className="font-semibold text-info">৳ {formatMoney(profitBeforeDiscount)}</span>
+        </div>
+        <div className="border-t border-base-200 pt-2 flex justify-between text-sm">
+          <span className="text-base-content/70 font-semibold">ডিসকাউন্টের পর মোট লাভ:</span>
+          <span className={`font-bold ${profitAfterDiscount >= 0 ? "text-success" : "text-error"}`}>
+            ৳ {formatMoney(profitAfterDiscount)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, profit, unit = "টি" }) => (
   <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm transition-all hover:shadow-md">
@@ -98,7 +143,7 @@ const CategoryCard = React.memo(({ title, icon: Icon, color, qty, amount, profit
         <Icon className="text-lg" />
       </div>
     </div>
-    
+
     <div className="mt-4 space-y-2">
       <div className="flex justify-between text-sm">
         <span className="text-base-content/60">বিক্রির পরিমাণ:</span>
@@ -141,18 +186,17 @@ function Reports() {
   const [filterType, setFilterType] = useState("today");
   const [startDate, setStartDate] = useState(formatDateForInput(new Date()));
   const [endDate, setEndDate] = useState(formatDateForInput(new Date()));
-  
+
   const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState(null);
 
-  // Load Data inside Effect without triggering state updates during setup
   useEffect(() => {
     let isMounted = true;
 
     const loadData = async () => {
       setLoading(true);
       const { start, end } = calculateDateRange(filterType, startDate, endDate);
-      
+
       try {
         const response = await reportsAPI.getSummary({ startDate: start, endDate: end });
         if (isMounted) {
@@ -177,11 +221,10 @@ function Reports() {
     };
   }, [filterType, startDate, endDate]);
 
-  // Manual Refresh Handler
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     const { start, end } = calculateDateRange(filterType, startDate, endDate);
-    
+
     try {
       const response = await reportsAPI.getSummary({ startDate: start, endDate: end });
       setReportData(response?.data || response);
@@ -194,19 +237,26 @@ function Reports() {
     }
   }, [filterType, startDate, endDate]);
 
-  // Data Extractors with fallback defaults
+  // Data Extractors
   const sales = useMemo(() => reportData?.sales || {}, [reportData]);
   const purchases = useMemo(() => reportData?.purchases || { totalAmount: 0, items: [] }, [reportData]);
   const duePayments = useMemo(() => reportData?.duePaymentsCollected || 0, [reportData]);
   const totalExpense = useMemo(() => reportData?.totalExpense || 0, [reportData]);
+  const totalDiscount = useMemo(() => reportData?.totalDiscount || 0, [reportData]);
+  const invoicesList = useMemo(() => reportData?.invoices || [], [reportData]);
 
-  // Total Summary Calculations
+  // সর্বমোট নিট লাভ (মোট লাভ - সকল ডিসকাউন্ট - সকল খরচ)
   const totalOverallProfit = useMemo(() => {
-    const chickenProfit = sales?.chicken?.profit || 0;
+    if (reportData?.netProfit !== undefined) {
+      return reportData.netProfit;
+    }
+    const chickenProfit = sales?.chicken?.profitBeforeDiscount || sales?.chicken?.profit || 0;
     const eggProfit = sales?.egg?.profit || 0;
     const spiceProfit = sales?.spice?.profit || 0;
-    return (chickenProfit + eggProfit + spiceProfit) - totalExpense;
-  }, [sales, totalExpense]);
+
+    const totalGrossProfit = chickenProfit + eggProfit + spiceProfit;
+    return totalGrossProfit - totalDiscount - totalExpense;
+  }, [sales, totalExpense, totalDiscount, reportData]);
 
   return (
     <div className="space-y-6 pb-10">
@@ -215,7 +265,7 @@ function Reports() {
         <div>
           <h1 className="text-2xl font-bold text-base-content sm:text-3xl">ব্যবসার রিপোর্ট</h1>
           <p className="mt-1 text-sm text-base-content/60">
-            বিক্রি, লাভ-ক্ষতি, কেনাকাটা এবং খরচের বিস্তারিত হিসাব
+            বিক্রি, লাভ-ক্ষতি, কেনাকাটা এবং ইনভয়েস ভিত্তিক বিস্তারিত হিসাব
           </p>
         </div>
         <button
@@ -277,21 +327,15 @@ function Reports() {
         </div>
       ) : (
         <>
-          {/* Sales & Category Profit Section */}
+          {/* Category Sales & Profit Section */}
           <div>
             <h2 className="mb-4 text-lg font-bold text-base-content/80 flex items-center gap-2">
               <FaChartLine className="text-primary" /> ক্যাটাগরি অনুযায়ী বিক্রি ও লাভ
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <CategoryCard
-                title="মুরগি বিক্রি (Chicken)"
-                icon={FaDrumstickBite}
-                color="bg-amber-500/10 text-amber-600"
-                qty={sales?.chicken?.quantity || 0}
-                amount={sales?.chicken?.totalAmount || 0}
-                profit={sales?.chicken?.profit || 0}
-                unit="টি / কেজি"
-              />
+              {/* চিকেন কার্ড */}
+              <ChickenCategoryCard chickenData={sales?.chicken} />
+
               <CategoryCard
                 title="ডিম বিক্রি (Egg)"
                 icon={FaEgg}
@@ -313,7 +357,7 @@ function Reports() {
             </div>
           </div>
 
-          {/* Cashflow & Financial Overview */}
+          {/* Financial Overview */}
           <div>
             <h2 className="mb-4 text-lg font-bold text-base-content/80 flex items-center gap-2">
               <FaMoneyBillWave className="text-success" /> আর্থিক লেনদেন ও নিট হিসাব
@@ -331,19 +375,19 @@ function Reports() {
                 amount={totalExpense}
                 icon={FaMoneyBillWave}
                 colorClass="bg-error/10 text-error"
-                subtitle="খামার ও অন্যান্য আনুমানিক খরচ"
+                subtitle="দোকান ও অন্যান্য আনুমানিক খরচ"
               />
               <FinancialCard
                 title="সর্বমোট নিট লাভ (Net Profit)"
                 amount={totalOverallProfit}
                 icon={FaChartLine}
                 colorClass={totalOverallProfit >= 0 ? "bg-success/10 text-success" : "bg-error/10 text-error"}
-                subtitle="সব খরচ বাদ দিয়ে অবশিষ্ট লাভ"
+                subtitle="সকল খরচ ও ডিসকাউন্ট বাদ দিয়ে নিট লাভ"
               />
             </div>
           </div>
 
-          {/* Purchase Details Breakdown Section */}
+          {/* Purchase Breakdown */}
           <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-base-200 pb-4 mb-4">
               <div className="flex items-center gap-3">
@@ -385,6 +429,71 @@ function Reports() {
             ) : (
               <p className="py-6 text-center text-sm text-base-content/50">
                 এই সময়সীমায় কোনো কেনাকাটার তথ্য নেই।
+              </p>
+            )}
+          </div>
+
+          {/* Invoice-wise Breakdown Table */}
+          <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-base-200 pb-4 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <FaFileInvoiceDollar className="text-xl" />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg">ইনভয়েস ভিত্তিক সেলস ও প্রফিট বিবরণী</h3>
+                <p className="text-xs text-base-content/50">
+                  প্রতিটি ইনভয়েসের সেল অ্যামাউন্ট, ডিসকাউন্ট এবং নিট প্রফিটের বিস্তারিত তালিকা
+                </p>
+              </div>
+            </div>
+
+            {invoicesList && invoicesList.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="table table-zebra w-full text-sm">
+                  <thead>
+                    <tr className="bg-base-200/50">
+                      <th>ইনভয়েস নং</th>
+                      <th>কাস্টমারের নাম</th>
+                      <th>সেল অ্যামাউন্ট (প্রকৃত)</th>
+                      <th>ডিসকাউন্ট</th>
+                      <th>ডিসকাউন্টের পর সেল</th>
+                      <th className="text-right">ইনভয়েস প্রফিট</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoicesList.map((inv, idx) => {
+                      const grossSale = inv.grossSaleAmount || inv.totalAmount || 0;
+                      const discount = inv.discountAmount || inv.discount || 0;
+                      const netSale = inv.netSaleAmount || (grossSale - discount);
+                      const profit = inv.profit !== undefined ? inv.profit : (netSale - (inv.costAmount || 0));
+
+                      return (
+                        <tr key={idx} className="hover">
+                          <td className="font-semibold text-primary">
+                            #{inv.invoiceNo || inv._id?.slice(-6)}
+                          </td>
+                          <td className="font-medium">
+                            {inv.customerName || "সাধারণ কাস্টমার"}
+                          </td>
+                          <td>৳ {formatMoney(grossSale)}</td>
+                          <td className="text-error font-medium">
+                            {discount > 0 ? `- ৳ ${formatMoney(discount)}` : "৳ 0"}
+                          </td>
+                          <td className="font-semibold text-base-content">
+                            ৳ {formatMoney(netSale)}
+                          </td>
+                          <td className={`text-right font-bold ${profit >= 0 ? "text-success" : "text-error"}`}>
+                            ৳ {formatMoney(profit)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-sm text-base-content/50">
+                এই সময়সীমায় কোনো বিক্রির ইনভয়েস ডাটা পাওয়া যায়নি।
               </p>
             )}
           </div>
