@@ -24,13 +24,18 @@ const Users = () => {
     roleId: "",
   });
 
-  // LocalStorage থেকে টোকেন চেক এবং Auth Headers তৈরি
+  // LocalStorage থেকে barakah_token রিড করে Auth Headers তৈরি
   const getAuthHeaders = useCallback(() => {
-    // 'token' অথবা 'accessToken' যেকোনো কী থেকে টোকেন বের করবে
-    const token = localStorage.getItem("token") || localStorage.getItem("accessToken");
+    // আপনার প্রজেক্টের নির্দিষ্ট টোকেন নাম barakah_token চেক করা হচ্ছে
+    const token =
+      localStorage.getItem("barakah_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("accessToken");
 
     if (!token) {
-      throw new Error("Authentication token পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।");
+      throw new Error(
+        "Authentication token পাওয়া যায়নি। অনুগ্রহ করে পুনরায় লগইন করুন।"
+      );
     }
 
     return {
@@ -43,11 +48,14 @@ const Users = () => {
   const safeFetchJson = useCallback(async (url, options = {}) => {
     const res = await fetch(url, options);
 
-    // যদি ৪০১ (Unauthorized) হয় তবে লগইন পেজে পাঠানোর ব্যবস্থা
+    // যদি ৪০১ (Unauthorized) হয় তবে রিমুভ করে লগইন পেজে পাঠানোর ব্যবস্থা
     if (res.status === 401) {
+      localStorage.removeItem("barakah_token");
+      localStorage.removeItem("barakah_user");
       localStorage.removeItem("token");
-      localStorage.removeItem("accessToken");
-      throw new Error("আপনার সেশনের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার লগইন করুন।");
+      throw new Error(
+        "আপনার সেশনের মেয়াদ শেষ হয়ে গেছে। অনুগ্রহ করে আবার লগইন করুন।"
+      );
     }
 
     const contentType = res.headers.get("content-type");
@@ -72,13 +80,17 @@ const Users = () => {
   // ----------------------------------------------------
   const fetchUsersData = useCallback(async () => {
     const headers = getAuthHeaders();
-    const data = await safeFetchJson(`${API_BASE_URL}?includeInactive=true`, { headers });
+    const data = await safeFetchJson(`${API_BASE_URL}?includeInactive=true`, {
+      headers,
+    });
     return data.data?.users || data.users || [];
   }, [getAuthHeaders, safeFetchJson]);
 
   const fetchRolesData = useCallback(async () => {
     const headers = getAuthHeaders();
-    const data = await safeFetchJson(`${API_BASE_URL}/available-roles`, { headers });
+    const data = await safeFetchJson(`${API_BASE_URL}/available-roles`, {
+      headers,
+    });
     return data.data?.roles || data.roles || [];
   }, [getAuthHeaders, safeFetchJson]);
 
@@ -247,7 +259,10 @@ const Users = () => {
               </button>
             )}
           </div>
-          <button onClick={() => setErrorMessage("")} className="font-bold ml-4">
+          <button
+            onClick={() => setErrorMessage("")}
+            className="font-bold ml-4 text-red-300 hover:text-white"
+          >
             ✕
           </button>
         </div>
@@ -256,7 +271,10 @@ const Users = () => {
       {successMessage && (
         <div className="mb-4 p-4 bg-green-900/60 border border-green-700 text-green-200 rounded-lg flex justify-between items-center shadow-md">
           <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage("")} className="font-bold ml-4">
+          <button
+            onClick={() => setSuccessMessage("")}
+            className="font-bold ml-4 text-green-300 hover:text-white"
+          >
             ✕
           </button>
         </div>
@@ -291,7 +309,9 @@ const Users = () => {
                   <th className="p-4 border-b border-slate-700">ইমেইল</th>
                   <th className="p-4 border-b border-slate-700">রোল</th>
                   <th className="p-4 border-b border-slate-700">স্ট্যাটাস</th>
-                  <th className="p-4 border-b border-slate-700 text-right">অ্যাকশন</th>
+                  <th className="p-4 border-b border-slate-700 text-right">
+                    অ্যাকশন
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700 text-sm">
@@ -308,7 +328,10 @@ const Users = () => {
                       user.roleDetails?.name ||
                       user.role;
                     return (
-                      <tr key={user._id} className="hover:bg-slate-700/30 transition">
+                      <tr
+                        key={user._id}
+                        className="hover:bg-slate-700/30 transition"
+                      >
                         <td className="p-4 font-medium">{user.name}</td>
                         <td className="p-4 text-gray-300">{user.email}</td>
                         <td className="p-4">

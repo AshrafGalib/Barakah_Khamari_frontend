@@ -6,7 +6,7 @@ const PermissionRoute = ({
   permission,
   permissions,
   mode = "any",
-  redirectTo = "/dashboard",
+  redirectTo = "/unauthorized", // ❌ "/dashboard" এর পরিবর্তে নিরাপদ পেজে পাঠান
 }) => {
   const { loading, isAuthenticated } = useAuth();
   const { can, canAny, canAll } = usePermission();
@@ -46,12 +46,17 @@ const PermissionRoute = ({
     hasAccess = mode === "all" ? canAll(permissions) : canAny(permissions);
   }
 
-  // Prevent infinite loops if redirected to the same path
+  // Prevent infinite loops: পারমিশন না থাকলে কখনো একই রুটে বা /dashboard এ লুপ করা যাবে না
   if (!hasAccess) {
-    const fallbackPath = location.pathname === redirectTo ? "/login" : redirectTo;
+    // location.pathname যদি নিজেই redirectTo হয়, তবে /login এ যাবে
+    const currentPath = location.pathname;
+    const targetPath = (currentPath === redirectTo || currentPath === "/dashboard") 
+      ? "/login" 
+      : redirectTo;
+
     return (
       <Navigate
-        to={fallbackPath}
+        to={targetPath}
         replace
         state={{
           unauthorized: true,

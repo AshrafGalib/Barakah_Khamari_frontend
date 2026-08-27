@@ -47,15 +47,13 @@ function App() {
     <>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* ==================================================
-              PUBLIC ROUTE
-              ================================================== */}
+          {/* PUBLIC ROUTE */}
           <Route path="/login" element={<Login />} />
 
-          {/* ==================================================
-              AUTHENTICATED & PROTECTED ROUTES
-              ================================================== */}
+          {/* AUTHENTICATED & PROTECTED ROUTES */}
           <Route element={<ProtectedRoute />}>
+            
+            {/* Layout সহ মূল Application Routes */}
             <Route element={<MainLayout />}>
               
               {/* Dashboard */}
@@ -212,14 +210,12 @@ function App() {
             </Route>
           </Route>
 
-          {/* ==================================================
-              FALLBACK ROUTE
-              ================================================== */}
+          {/* FALLBACK ROUTE */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Suspense>
 
-      {/* টোস্ট নোটিফিকেশন রেন্ডার করার জন্য ToastContainer */}
+      {/* Toast Notification Container */}
       <ToastContainer
         position="top-right"
         autoClose={3000}
